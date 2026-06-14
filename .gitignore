@@ -1,0 +1,84 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ===== Virtual envs =====
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# ===== uv =====
+.uv/
+
+# ===== Testing =====
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# ===== Type checkers =====
+.mypy_cache/
+.ruff_cache/
+.dmypy.json
+dmypy.json
+
+# ===== Logs =====
+logs/
+*.log
+
+# ===== Local runtime data =====
+data/
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# ===== Secrets =====
+.env
+.env.local
+.env.*.local
+
+# ===== IDE =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ===== Jupyter =====
+.ipynb_checkpoints/
+
+# ===== Streamlit =====
+.streamlit/secrets.toml
+
+# ===== Claude / Superpowers local state =====
+.claude/scheduled_tasks.json
+.claude/tasks.json
