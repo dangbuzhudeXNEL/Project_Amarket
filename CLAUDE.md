@@ -17,7 +17,7 @@
 
 **主语言**：Python 3.11+
 **运行环境**：本地 Windows 开发机 `C:\AI\Claude\Project_Amarket`
-**模型**：Claude `opus-4.7`，通过本地 localhost 代理调用（已有 Claude Code 接入）
+**AI 集成模式**：**Brainmaster 模式** — Python 通过 `subprocess` 调用 `claude` CLI，agent 定义在 `.claude/agents/*.md`，输出走文件系统 JSON。零 API 成本，复用用户 Claude Code 订阅。
 
 ---
 
@@ -105,9 +105,10 @@ uv run streamlit run src/amarket/ui/app.py --server.port 8501
 3. **密钥禁止硬编码**：所有 API key / webhook URL 走 `.env`，代码里只用 env var 名
 4. **配置走 YAML + Pydantic**：所有可调参数走 `config/*.yml`，加载用 `pydantic-settings`
 5. **依赖倒置**：Service 层禁止 import Adapter 实现，只 import `adapters/*/base.py` 中的接口
-6. **测试优先**：写 Service 前先写它的单元测试骨架（不强制 TDD，但要先想好怎么测）
-7. **commit 信息**：`<type>(<scope>): <subject>` 格式（如 `feat(news_collector): add cls adapter`）；中文/英文都行，但 type 用英文
-8. **不允许 amend commits**：除非用户明确要求
+6. **AI 集成走 ClaudeAgentRunner**：Service 层禁止直接 `subprocess.run` 调 `claude`；统一走 `ClaudeAgentRunner` adapter；agent 输出严格校验
+7. **测试优先**：写 Service 前先写它的单元测试骨架（不强制 TDD，但要先想好怎么测）
+8. **commit 信息**：`<type>(<scope>): <subject>` 格式（如 `feat(news_collector): add cls adapter`）；中文/英文都行，但 type 用英文
+9. **不允许 amend commits**：除非用户明确要求
 
 ---
 
@@ -128,7 +129,9 @@ uv run streamlit run src/amarket/ui/app.py --server.port 8501
 - ❌ React 前端 —— Streamlit 起步
 - ❌ 用户认证 —— 单用户配置文件
 - ❌ Docker / K8s —— MVP 本地常驻
-- ❌ 全量新闻过 AI —— 只对盘前汇总 + breaking 用 AI
+- ❌ 全量新闻过 AI —— 只对盘前汇总用 AI（breaking 走纯规则）
+- ❌ Anthropic SDK 直接调用 —— 走 Claude Code agent (Brainmaster 模式)
+- ❌ API key for LLM —— 用 Claude CLI subprocess 即可
 
 如果未来这些限制要打破，**先写 ADR**（`docs/adr/`），再动手。
 

@@ -65,7 +65,8 @@ data/
 .env.*.local
 PAT.txt
 *.pat
-*PAT*
+*_pat.txt
+github_pat_*
 secrets/
 credentials/
 
@@ -85,5 +86,9 @@ Thumbs.db
 .streamlit/secrets.toml
 
 # ===== Claude / Superpowers local state =====
+# Keep .claude/agents/ and .claude/commands/ in repo (project assets)
+# Ignore local/machine-specific state files
 .claude/scheduled_tasks.json
+.claude/scheduled_tasks.lock
 .claude/tasks.json
+.claude/settings.local.json

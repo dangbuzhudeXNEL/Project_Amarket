@@ -37,7 +37,7 @@
 - **ORM**：SQLModel + Alembic
 - **DB**：SQLite（起步，未来可平迁 PostgreSQL）
 - **调度**：APScheduler
-- **LLM**：Claude opus-4.7（默认）+ DeepSeek（备用）
+- **AI 集成**：**Brainmaster 模式** — `subprocess` 调 `claude` CLI + `.claude/agents/*.md` 定义 + 文件系统 JSON 输出，零 API key 需求
 - **推送**：企业微信群机器人（主） + Telegram Bot（预留）
 - **新闻源**：财联社 + 东方财富 7x24 + 新浪 7x24 + 华尔街见闻
 - **日志**：structlog (JSON)
@@ -51,6 +51,11 @@ Project_Amarket/
 ├── CLAUDE.md                  # Claude Code 项目记忆（自动加载）
 ├── README.md                  # 本文件
 ├── CHANGELOG.md               # 变更历史
+├── .claude/                   # Brainmaster 模式：AI 工作负载
+│   ├── agents/                # Python subprocess 调用的 agent 定义
+│   │   └── news-analyst.md
+│   └── commands/              # 用户可手动调用的 slash commands
+│       └── test-premarket.md
 ├── docs/
 │   ├── PROJECT_STATE.md       # 项目"现在到哪了"快照
 │   ├── sessions/              # 每次开发 session 的日志

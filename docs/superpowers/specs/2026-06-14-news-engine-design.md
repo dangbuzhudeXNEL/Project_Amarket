@@ -77,7 +77,7 @@
 | 基础设施 | 配置加载、密钥管理、日志、调度、Metrics、健康检查、SQLite + Alembic 迁移、Streamlit UI 框架、FastAPI 后端 |
 | 新闻采集 | 财联社 / 东方财富 7x24 / 新浪 7x24 / 华尔街见闻 四源接入 |
 | 新闻处理 | 跨源去重（SimHash）、规则分类（财报/政策/行业/公司/宏观）、Breaking 判定（来源 + 关键词） |
-| AI 增强 | Claude API 集成（默认 `claude-opus-4-7`，走用户本地 localhost 代理；可配置切 Sonnet 或其他 model id）、Prompt 模板（Jinja2）、Prompt 缓存、降级链（Claude → DeepSeek → 原文） |
+| AI 增强 | **Claude Code agent 模式**：定义 `.claude/agents/news-analyst.md`，Python 通过 `subprocess.run(["claude", "--agent", "news-analyst", "-p", ...])` 触发；agent 写 JSON 到 `data/news/summaries/`；Python 校验输出文件存在 + valid JSON 后读取 | 降级链（agent 失败 → 原文头条列表 → 推送告警） |
 | 推送 | 企业微信群机器人（主渠道）、Telegram Bot adapter（仅 stub 实现） |
 | UI | Streamlit 5 页：总览 / 新闻列表 / 推送日志 / 配置编辑 / 测试工具 |
 | CLI | Typer 命令行：手动触发推送、查询、健康检查、数据库迁移 |
@@ -117,7 +117,8 @@
 | **主语言** | Python 3.11+ | 量化生态最强；类型 hints 完善 |
 | **数据源策略** | akshare + efinance + yfinance + RSS（Spec #2 主用） | 免费可控；多源抽象 + 路由后期可加付费源 |
 | **新闻源** | 财联社 / 东财 7x24 / 新浪 7x24 / 华尔街见闻 | 覆盖国内主流 breaking 90% 以上 |
-| **LLM** | Claude (Anthropic API)，默认 `claude-opus-4-7`，通过本地 localhost 代理（用户已有 Claude Code 接入）；`LLMProvider` 接口预留 DeepSeek / 通义 / 本地 Ollama | 用户提供本地代理，零边际成本；后续如成本/速率压力大可降级 Sonnet |
+| **LLM 集成模式** | **Brainmaster 模式**：Python 通过 `subprocess` 调用 `claude` CLI，agent 定义在 `.claude/agents/*.md`，输出走文件系统 JSON。零 API 成本，复用用户 Claude Code 订阅。Tier 2 fallback 可选用 Anthropic SDK（DeepSeek 同样作为可选 fallback） | 与隔壁 Brainmaster 项目模式一致；不需要 API key；MCP 工具可直接给 agent 用 |
+| **AI 模型** | Agent 自行声明 model（在 `.claude/agents/*.md` 的 frontmatter 里）。News-analyst 默认 `sonnet`（摘要任务）；如有需要重决策的 agent 可声明 `opus` | Agent 级别细粒度选型 |
 | **盘前推送** | 工作日 08:30 一次（节假日跳过） | 信息集中、低打扰、适合上班族 |
 | **Breaking 判定** | 纯规则：高优来源 + 关键词命中 → 立即推；其他不推 | 延迟低、可预测、成本 0；可演进 |
 | **推送渠道** | 企业微信群机器人（主） + Telegram Bot（仅 adapter stub） | 中国大陆稳定；架构多渠道可插拔 |
@@ -233,15 +234,14 @@ python -m amarket  →  启动一个进程，内含：
 - **节流**：全局 6/h + 1/min；订阅相关无上限；其他 3/h
 - **重试**：3 次指数退避（1s/2s/4s）；最终失败切换备用渠道；再失败告警
 
-#### 5.1.4 `AIService`（LLM 调用服务）
-- **职责**：封装 LLM 调用，Prompt 缓存、超时控制、降级链
+#### 5.1.4 `AIService`（AI 编排服务）
+- **职责**：触发 Claude Code agent (subprocess)、校验输出文件、降级链；不直接调用任何 LLM SDK
 - **关键方法**：
-  - `summarize_for_premarket(items: List[NewsItem]) -> str`（Markdown 摘要）
-  - `summarize_breaking(item: NewsItem) -> BreakingSummary`（结构化）
-  - `call(prompt_id: str, vars: dict, output_schema: BaseModel | None) -> Any`
-- **依赖**：`LLMProvider[]`（Claude 主、DeepSeek 备）、`PromptCache`
-- **缓存**：`hash(prompt_id, vars)` 为 key，TTL 24h；Claude 启用 prompt caching
-- **降级**：主 LLM 失败 → 备 LLM；都失败 → 抛 `LLMUnavailableError`，调用方决定
+  - `summarize_for_premarket(news_ids: List[int]) -> PremarketSummary`：写 prompt + 触发 agent + 读 JSON
+  - `run_agent(agent_name: str, prompt: str, expected_output: Path, timeout: int) -> AgentRunResult`
+- **依赖**：`ClaudeAgentRunner`（subprocess 封装）、`NewsRepo`（读源数据、写已处理标记）
+- **降级**：subprocess 超时/退出非 0/输出文件不存在/JSON 不合法 → 走 Tier 2 fallback（若启用 `anthropic` SDK）→ 仍失败 → 走"原文头条列表"模板（不依赖任何 AI）
+- **校验**：参考 Brainmaster `_run_agent_with_verification` 模式：跑前抓 `expected_output` 文件 mtime + 大小，跑后再抓，没变化即 `degraded`
 
 #### 5.1.5 `ConfigService`（配置服务）
 - **职责**：加载 YAML 配置、热重载、密钥脱敏（日志中）
@@ -294,10 +294,52 @@ class NewsSource(Protocol):
 
 ⚠️ **合规注意**：所有抓取需设置合理 User-Agent、遵守 robots.txt、控制频率（< 1 req/s/source），避免被封 IP。
 
-#### 5.2.2 `LLMProvider` 接口
+#### 5.2.2 `ClaudeAgentRunner`（subprocess 封装，主路径）
+
+Brainmaster 模式核心组件。封装 Claude CLI 调用 + 输出校验。
+
+```python
+class ClaudeAgentRunner:
+    """Run Claude Code agent via subprocess; verify expected output file written."""
+    
+    def __init__(self, cli_path: str = "claude", default_timeout: int = 600):
+        # 用 shutil.which() 解决 Windows 上 .cmd 包装器问题
+        import shutil
+        self._cli = shutil.which(cli_path) or cli_path
+        self._default_timeout = default_timeout
+    
+    def run(
+        self,
+        agent_name: str,             # 匹配 .claude/agents/<name>.md
+        prompt: str,
+        expected_output: Path,       # agent 必须写到这个文件，否则视为失败
+        timeout: int | None = None,
+        cwd: Path | None = None,     # 默认项目根
+    ) -> AgentRunResult:
+        """
+        Returns AgentRunResult with status in:
+          - 'completed': CLI 0 退出 + expected_output 文件已写入 + JSON valid
+          - 'degraded':  CLI 0 退出但 expected_output 没写/无效
+          - 'timeout':   subprocess 超时
+          - 'error':     CLI 非 0 退出
+        """
+        pre_mtime = expected_output.stat().st_mtime if expected_output.exists() else 0.0
+        
+        cmd = [self._cli, "--agent", agent_name, "-p", prompt]
+        # subprocess.run with capture_output, timeout=timeout, cwd=cwd, encoding='utf-8'
+        # 返回前做 verification:
+        # - 检查 expected_output 是否存在 + mtime > pre_mtime + json.loads() 成功
+        # 不成功则 status='degraded'
+        ...
+```
+
+#### 5.2.3 `LLMProvider`（Tier 2 fallback，可选）
+
+仅当 `ANTHROPIC_API_KEY` 或 `DEEPSEEK_API_KEY` env 配置时启用。MVP 默认不启用。
 
 ```python
 class LLMProvider(Protocol):
+    """Optional fallback for when Claude CLI is unavailable."""
     model_id: str
     
     async def complete(
@@ -306,15 +348,12 @@ class LLMProvider(Protocol):
         max_tokens: int,
         temperature: float = 0.3,
         response_format: Literal['text', 'json'] | dict = 'text',
-        cache_breakpoints: List[int] | None = None,  # 用于 prompt caching
     ) -> LLMResponse: ...
-    
-    def get_usage(self) -> LLMUsage: ...
 ```
 
-`ClaudeProvider` 实现使用 Anthropic SDK，启用 prompt caching（节省 90% 输入成本）。
+实现：`AnthropicSDKProvider`（标准官方 SDK 调用）、`DeepSeekProvider`。
 
-#### 5.2.3 `Notifier` 接口
+#### 5.2.4 `Notifier` 接口
 
 ```python
 class Notifier(Protocol):
@@ -329,16 +368,86 @@ class Notifier(Protocol):
 - `WeWorkBotNotifier`：调用 `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=XXX`
 - `TelegramBotNotifier`：调用 Telegram Bot API（MVP 只 stub，不实际测试）
 
-### 5.3 Repository 层模块
+### 5.3 Claude Code Agents（AI 工作负载定义）
+
+按 Brainmaster 模式，所有 AI 工作放在 `.claude/agents/*.md`，由 Python `ClaudeAgentRunner` 通过 subprocess 触发。
+
+#### 5.3.1 Spec #1 需要的 Agents
+
+| Agent 名称 | 触发场景 | 输入 | 输出（强制路径） | 默认 model | maxTurns |
+|-----------|---------|------|---------------|----------|----------|
+| `news-analyst` | 盘前 08:25-08:30 一次 / 手动测试 | 读取 `data/news/raw/<date>/*.json`（Python collector 写入的过去 12h 新闻） | `data/news/summaries/<date>-premarket.json` | sonnet | 30 |
+| (预留) `news-classifier-deep` | 用户启用"AI breaking 评分"功能时 | 单条新闻 JSON | `data/news/processed/<news_id>.json` | sonnet | 5 |
+
+#### 5.3.2 `news-analyst` Agent 定义模板
+
+```yaml
+---
+name: news-analyst
+model: sonnet
+description: 把原始 A 股财经新闻汇总成结构化盘前简报（Markdown + 结构化字段）
+tools: Read, Write, Glob, Grep
+maxTurns: 30
+---
+
+# News Analyst Agent
+
+你被 Python 调度器（Project_Amarket 的 AIService）唤醒时，典型提示词形如：
+
+> "读取 data/news/raw/2026-06-14/*.json（共 N 条），生成今日盘前汇总，
+>  写入 data/news/summaries/2026-06-14-premarket.json"
+
+## 你的核心产出
+
+**严格写一个 JSON 文件到指定路径**，schema：
+
+```json
+{
+  "date": "2026-06-14",
+  "kind": "premarket",
+  "summary_markdown": "## 昨夜美股\n...\n## 政策面\n...\n## 公司面\n...\n## 行业面\n...\n## 今日重点\n...",
+  "highlights": [
+    {"category": "policy", "title": "...", "source": "cls", "published_at": "..."}
+  ],
+  "generated_at": "2026-06-14T08:28:33+08:00",
+  "input_news_count": 47,
+  "model": "sonnet",
+  "agent_turn_count": 12
+}
+```
+
+## 工作流程
+
+1. 用 `Glob` + `Read` 读取 `data/news/raw/<date>/*.json` 全部文件
+2. 按 5 个维度（昨夜美股 / 政策面 / 公司面 / 行业面 / 今日重点）分类汇总
+3. 每段 3-5 行 Markdown，避免空话
+4. 用 `Write` 工具一次性写出 JSON 到指定路径（**绝对路径**）
+5. 若读不到任何文件 → 仍写出 JSON，`summary_markdown` 为 "今日无新闻数据"
+
+## 注意
+
+- 不允许写到其他路径
+- 不要打 Bash / 不要联网
+- 输出 JSON 必须 `json.loads()` 能解析（Python 端会校验）
+- 不要 markdown 包裹整个 JSON 输出（用 Write 直接写文件即可）
+```
+
+#### 5.3.3 Slash Commands（用户手动调用 / 测试）
+
+| Command | 用途 | 触发方式 |
+|---------|------|---------|
+| `/test-premarket` | 手动运行一次盘前汇总（不通过调度器） | 用户在 Claude Code 输入 |
+
+### 5.4 Repository 层模块
 
 每个 Repo 封装一类聚合根的 CRUD + 查询：
 
-- `NewsRepo`：`save_batch`、`get_by_source_msg_id`、`find_unprocessed`、`find_by_simhash_within`、`query_by_window`
+- `NewsRepo`：`save_batch`、`get_by_source_msg_id`、`find_unprocessed`、`find_by_simhash_within`、`query_by_window`、`export_raw_for_date`（导出到 `data/news/raw/<date>/*.json` 供 agent 读取）
 - `PushLogRepo`：`save`、`count_within_window`、`find_recent_by_user`
 - `ConfigRepo`：（暂不用，配置走 YAML；预留）
 - `UserRepo`：`get_default_user`（MVP）、`list_subscriptions`
 
-### 5.4 Domain 层
+### 5.5 Domain 层
 
 `domain/models.py` 包含所有 SQLModel 表 + Pydantic 业务对象。  
 `domain/enums.py` 包含所有枚举（`SourcePriority`、`NewsTag`、`Sentiment`、`PushKind`、`PushStatus` 等）。
@@ -509,12 +618,13 @@ created_at      DATETIME
   │     ├─→ SimHash 跨源去重
   │     └─→ 写 news_processings
   │
-  ├─→ AIService.summarize_for_premarket(top_N_items)
-  │     ├─→ 渲染 prompts/summarize_premarket.j2
-  │     ├─→ LLMProvider.complete(<sonnet-model-id-from-config>)
-  │     │     prompt: "你是A股资深分析师..."
-  │     │     输出: Markdown 格式 5 段（夜美股/政策/公司/行业/重点）
-  │     └─→ 失败 → 降级 DeepSeek → 仍失败 → 走"原文头条列表"模板
+  ├─→ AIService.summarize_for_premarket(top_N_items, date)  ← 详见 §7.3
+  │     ├─→ NewsRepo.export_raw_for_date() → data/news/raw/<date>/*.json
+  │     ├─→ ClaudeAgentRunner.run("news-analyst", prompt, expected_output, timeout=600)
+  │     │     subprocess: claude --agent news-analyst -p "..."
+  │     │     agent 读 raw/, 写 summaries/<date>-premarket.json
+  │     ├─→ 校验 expected_output 文件存在 + valid JSON
+  │     └─→ 失败 → Tier 2 (LLMProvider SDK 若启用) → Tier 3 (原文头条列表模板)
   │
   ├─→ NewsPusher.push_premarket(summary)
   │     ├─→ 渲染 templates/premarket.j2（加 emoji + 日期 + 来源标注）
@@ -550,28 +660,50 @@ APScheduler 每 60s 触发 realtime_poll_job()
   │           └─→ 被节流 → 加入 burst_batch，5 min 后汇总推送
 ```
 
-### 7.3 AI 调用降级链
+### 7.3 AI 工作流（Brainmaster 模式 — subprocess + 文件输出 + 校验 + 降级）
 
 ```
-AIService.summarize(prompt_id, vars, model=<sonnet-model-id-from-config>)
+AIService.summarize_for_premarket(news_ids, date)
   │
-  ├─→ PromptCache.lookup(hash(prompt_id, vars)) [TTL 24h]
-  │     └─→ HIT → 返回缓存
+  ├─→ 1. 导出原始数据
+  │     NewsRepo.export_raw_for_date(date) → data/news/raw/2026-06-14/*.json
+  │     （每条新闻一个文件，方便 agent 用 Glob 读取）
   │
-  ├─→ MISS → LLMProvider.complete()
-  │     ├─→ ClaudeProvider:
-  │     │     - 启用 prompt caching (system prompt 加 cache_control)
-  │     │     - 30s 超时
-  │     │     - 2 次指数退避重试
-  │     ├─→ 失败 → 降级 DeepSeek（若配置）
-  │     └─→ 仍失败 → 抛 LLMUnavailableError
+  ├─→ 2. 构造 prompt 模板
+  │     prompt = render("prompts/run_premarket_agent.j2", vars={
+  │       date: "2026-06-14",
+  │       news_count: len(news_ids),
+  │       raw_dir: "data/news/raw/2026-06-14/",
+  │       output_path: "data/news/summaries/2026-06-14-premarket.json"
+  │     })
   │
-  ├─→ 调用方处理 LLMUnavailableError:
-  │     - 盘前: 走"原文头条列表"模板（不依赖 AI）
-  │     - Breaking: 走"原文标题+来源"模板
+  ├─→ 3. ClaudeAgentRunner.run(
+  │       agent_name="news-analyst",
+  │       prompt=prompt,
+  │       expected_output=Path("data/news/summaries/2026-06-14-premarket.json"),
+  │       timeout=600,  # 10 分钟，新闻多的话 sonnet 也要时间
+  │     )
+  │     ├─→ subprocess.run(["claude", "--agent", "news-analyst", "-p", prompt],
+  │     │                    capture_output=True, timeout=600, cwd=PROJECT_ROOT)
+  │     ├─→ status='completed' 当且仅当：
+  │     │    - exit code = 0
+  │     │    - expected_output 文件 mtime > pre_run mtime
+  │     │    - json.loads(expected_output) 成功
+  │     │    - JSON 包含必需字段 (date, kind, summary_markdown, generated_at)
+  │     └─→ 否则 status ∈ {'degraded','timeout','error'}
   │
-  └─→ 成功 → PromptCache.save(...) → 返回结构化结果
+  ├─→ 4. 校验通过 → 读 JSON → 返回 PremarketSummary 对象
+  │
+  ├─→ 5. 校验失败 → 降级链：
+  │     ├─→ Tier 2: 若启用 ANTHROPIC_API_KEY，调 LLMProvider（标准 SDK）
+  │     ├─→ Tier 3: 走"原文头条列表"模板（不依赖任何 AI）
+  │     └─→ 全失败 → 抛异常 → ObservabilityService 告警
+  │
+  └─→ 6. 不管走哪条路径，记录到 ai_run_logs 表：
+        agent_name | status | duration_s | input_count | output_path | error
 ```
+
+**Breaking news 不调 agent**（MVP 走纯规则），所以没有 Tier 2 需求。
 
 ---
 
@@ -582,7 +714,8 @@ AIService.summarize(prompt_id, vars, model=<sonnet-model-id-from-config>)
 ```
 config/
 ├── app.yml             # 应用全局配置
-├── llm.yml             # LLM 选型与参数
+├── agents.yml          # Claude Code agent 集成配置（主路径）
+├── llm.yml             # 可选：Tier 2 LLM SDK fallback（默认不启用）
 ├── sources.yml         # 新闻源配置 + 权重
 ├── keywords.yml        # Breaking 关键词词典
 ├── scheduler.yml       # 调度时间表
@@ -610,25 +743,50 @@ ui:
   port: 8501
 ```
 
-**`llm.yml`**
+**`agents.yml`** (主路径 — Brainmaster 模式)
 ```yaml
-default_provider: claude
-default_model: claude-opus-4-7  # 用户当前 session 模型；可改 sonnet 省成本
+# Claude CLI 配置
+claude_cli:
+  path: claude                 # PATH 中可直接调用，否则填绝对路径
+  default_timeout_seconds: 600 # 10 分钟兜底超时
+  cwd: .                       # subprocess 工作目录 = 项目根
+
+# Agent 定义索引（实际定义在 .claude/agents/*.md）
+agents:
+  - name: news-analyst
+    description: 盘前新闻汇总
+    timeout_seconds: 600
+    expected_output_glob: "data/news/summaries/{date}-premarket.json"
+    required_output_fields:
+      - date
+      - kind
+      - summary_markdown
+      - generated_at
+    on_failure: fallback_to_tier2  # fallback_to_tier2 | fail | use_template
+
+# Tier 2 fallback 行为（仅当 agent 失败 + LLM SDK 配置完整时启用）
+fallback:
+  enabled: false               # MVP 默认关闭；用户后续可启用
+  provider: anthropic          # anthropic | deepseek
+  template_path: prompts/run_premarket_template.j2
+```
+
+**`llm.yml`** (Tier 2 fallback, 可选)
+```yaml
+# 仅当 agents.yml 中 fallback.enabled=true 才会使用
+default_provider: anthropic
 fallback_chain:
-  - claude
+  - anthropic
   - deepseek
 
 providers:
-  claude:
-    model: claude-opus-4-7
+  anthropic:
+    model: claude-sonnet-4-5   # 实施时 pin 实际 model id
     max_tokens: 2000
     temperature: 0.3
-    timeout_seconds: 60   # opus 比 sonnet 慢，给宽点
-    enable_prompt_cache: true
+    timeout_seconds: 60
     api_key_env: ANTHROPIC_API_KEY
-    # 当 base_url_env 有值时走本地/自定义代理（如 Claude Code Router、LiteLLM）
-    # 留空则走 Anthropic 官方 API
-    base_url_env: ANTHROPIC_BASE_URL
+    base_url_env: ANTHROPIC_BASE_URL  # 可选：走 localhost 代理
   deepseek:
     model: deepseek-chat
     max_tokens: 2000
@@ -638,13 +796,7 @@ providers:
     base_url: https://api.deepseek.com
 ```
 
-> **本地代理说明**：用户当前的开发环境通过 localhost 代理（如 [claude-code-router](https://github.com/musistudio/claude-code-router) / LiteLLM / 自建反代）将本地 Claude Code 订阅暴露为标准 Anthropic 兼容 API。MVP 配置：
-> ```bash
-> # .env
-> ANTHROPIC_API_KEY=any-string-if-proxy-doesnt-require
-> ANTHROPIC_BASE_URL=http://localhost:XXXX  # M0 实施时确认实际端口
-> ```
-> 若不设 `ANTHROPIC_BASE_URL`，SDK 默认走 `https://api.anthropic.com`，付费走真实 API。
+> **MVP 默认不启用 Tier 2 fallback**。Agent 失败时直接走 Tier 3（原文头条列表模板），不调任何 LLM SDK。这样 MVP 完全不依赖任何 API key。
 
 **`sources.yml`**
 ```yaml
@@ -745,18 +897,25 @@ channels:
 ### 8.3 `.env.example`
 
 ```bash
-# ===== LLM =====
-ANTHROPIC_API_KEY=sk-ant-xxxxx
-DEEPSEEK_API_KEY=
-# ===== Notifier =====
+# ===== Notifier (必填) =====
 WEWORK_BOT_WEBHOOK_URL=https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxxxx
 WEWORK_ALERT_BOT_WEBHOOK_URL=https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxxxx
-TELEGRAM_BOT_TOKEN=
-TELEGRAM_CHAT_ID=
+
+# ===== Tier 2 LLM Fallback (MVP 默认不需要；启用时填) =====
+# ANTHROPIC_API_KEY=sk-ant-xxxxx
+# ANTHROPIC_BASE_URL=               # 可选：走 localhost 代理
+# DEEPSEEK_API_KEY=
+
+# ===== Telegram (MVP 不启用) =====
+# TELEGRAM_BOT_TOKEN=
+# TELEGRAM_CHAT_ID=
+
 # ===== App =====
 APP_ENV=dev
 LOG_LEVEL=INFO
 ```
+
+> **MVP 必填项只有 2 个企微 webhook**。LLM 走 Claude Code 订阅，零 API key 需求。Tier 2 fallback 默认禁用。
 
 ### 8.4 密钥处理原则
 
@@ -936,6 +1095,13 @@ Project_Amarket/
 │       │   └── 2026-06-14-news-engine-design.md   ← 本文件
 │       └── plans/              # 实施计划（下一步用 writing-plans 生成）
 │
+├── .claude/                    # 🆕 Brainmaster 模式：AI 工作负载定义
+│   ├── agents/                 # Python subprocess 调用的 agent 定义
+│   │   └── news-analyst.md
+│   ├── commands/               # 用户手动可调的 slash commands
+│   │   └── test-premarket.md
+│   └── settings.json           # Claude Code 项目级配置（按需）
+│
 ├── scripts/
 │   └── watchdog/               # 🆕 外部 watchdog 脚本（独立于主进程）
 │       ├── watchdog.ps1        # Windows Task Scheduler 调用
@@ -943,19 +1109,28 @@ Project_Amarket/
 │
 ├── config/
 │   ├── app.yml
-│   ├── llm.yml
+│   ├── agents.yml              # 🆕 主路径：Claude Code agent 集成配置
+│   ├── llm.yml                 # 可选：Tier 2 LLM SDK fallback（默认禁用）
 │   ├── sources.yml
 │   ├── keywords.yml
 │   ├── scheduler.yml
 │   ├── notifiers.yml
 │   └── prompts/
-│       ├── summarize_premarket.j2
-│       └── breaking_template.j2
+│       ├── run_premarket_agent.j2  # 🆕 喂给 news-analyst agent 的 prompt 模板
+│       ├── premarket_template.j2    # 推送给企微的盘前模板
+│       └── breaking_template.j2     # 推送给企微的 breaking 模板
 │
 ├── data/                       # 运行时数据（.gitignore）
 │   ├── amarket.db
 │   ├── trade_calendar.json
-│   └── logs/
+│   ├── logs/
+│   └── news/                   # 🆕 agent 工作目录
+│       ├── raw/                #   Python collector 导出供 agent 读取
+│       │   └── 2026-06-14/
+│       │       ├── cls_001.json
+│       │       └── ...
+│       └── summaries/          #   agent 写入的结构化输出
+│           └── 2026-06-14-premarket.json
 │
 ├── src/
 │   └── amarket/
@@ -999,10 +1174,13 @@ Project_Amarket/
 │       │   │   ├── eastmoney.py
 │       │   │   ├── sina.py
 │       │   │   └── wallstreet.py
-│       │   ├── llm/
-│       │   │   ├── base.py
-│       │   │   ├── claude.py
-│       │   │   └── deepseek.py
+│       │   ├── ai/                  # 🆕 AI 编排（取代原 llm/）
+│       │   │   ├── base.py          # ClaudeAgentRunner / Tier 2 LLMProvider 接口
+│       │   │   ├── claude_agent_runner.py   # 主路径：subprocess + 验证
+│       │   │   ├── verification.py  # 输出文件校验工具
+│       │   │   └── tier2/           # 可选 LLM SDK fallback
+│       │   │       ├── anthropic_sdk.py
+│       │   │       └── deepseek.py
 │       │   └── notifiers/
 │       │       ├── base.py
 │       │       ├── wework_bot.py
@@ -1070,7 +1248,6 @@ Project_Amarket/
 | `sqlmodel` | ORM | ^0.0.22 |
 | `alembic` | DB 迁移 | ^1.13 |
 | `apscheduler` | 调度 | ^3.10 |
-| `anthropic` | Claude SDK | ^0.40 |
 | `httpx` | HTTP 客户端 | ^0.27 |
 | `structlog` | 结构化日志 | ^24.0 |
 | `loguru` | 日志辅助（rotation） | ^0.7 |
@@ -1085,7 +1262,16 @@ Project_Amarket/
 | `pyyaml` | YAML 解析 | ^6.0 |
 | `python-dotenv` | env 加载 | ^1.0 |
 
-### 12.2 开发依赖
+### 12.2 可选依赖（Tier 2 LLM SDK fallback，MVP 不安装）
+
+| 包 | 用途 |
+|------|------|
+| `anthropic` | Tier 2: Anthropic 官方 SDK fallback |
+| `openai` | Tier 2: 走 DeepSeek（DeepSeek 兼容 OpenAI SDK） |
+
+启用方式：`uv add anthropic openai --optional tier2-llm` + 设 `agents.yml` 中 `fallback.enabled=true`。
+
+### 12.3 开发依赖
 
 | 包 | 用途 |
 |------|------|
@@ -1111,7 +1297,7 @@ Project_Amarket/
 | **M0：项目骨架** | 1-2 天 | uv 项目初始化、CI、pre-commit、SQLite+Alembic baseline、健康检查 `/healthz`、Streamlit Hello World、企微机器人 hello 推送 | 能本地启动 + 推送一条"hello"到企微 |
 | **M1：单源端到端** | 2-3 天 | 财联社 adapter、`NewsCollector` 基础、`NewsRepo`、最小推送链路 | 财联社抓 → 入库 → 推送一条到企微 |
 | **M2：多源 + 去重 + 规则分类** | 3-4 天 | 4 源全部接入、SimHash 去重、`NewsClassifier` 规则、breaking 判定 | 4 源同时拉取 + 准确去重 + 高优新闻被标 breaking |
-| **M3：AI 增强** | 2-3 天 | `LLMProvider`（Claude + DeepSeek）、Prompt 缓存、降级链 | 一条新闻 → AI 摘要 → 结构化输出 |
+| **M3：AI 增强（Brainmaster 模式）** | 2-3 天 | `ClaudeAgentRunner` (subprocess + 校验)、`.claude/agents/news-analyst.md` 定义、prompts/run_premarket_agent.j2、降级链 | `python -m amarket test-premarket` 走 subprocess 调 claude CLI → news-analyst 写出 summaries JSON → Python 读取 → 渲染推送模板 |
 | **M4：盘前 + 调度** | 2-3 天 | APScheduler 集成、节假日、08:30 cron、模板渲染 | 模拟运行下能按 cron 触发完整盘前流程 |
 | **M5：可观察性 + UI** | 2-3 天 | Streamlit 5 页、`/metrics` 完整指标、告警机器人 | UI 能看新闻/推送/配置、Prometheus 能爬指标 |
 | **M6：集成测试 + 文档 + 试运行** | 2-3 天 | E2E 测试、README、运维手册、连续运行 1 周 | 7 天无人工干预正常运转、生成运行报告 |
@@ -1325,11 +1511,12 @@ MVP 不依赖 hooks，纯靠 CLAUDE.md 文档约束即可。
 
 | # | 事项 | 决议 |
 |---|------|------|
-| ✅1 | Anthropic API 接入方式 | 走用户本地 localhost 代理（如 claude-code-router / LiteLLM），通过 `ANTHROPIC_BASE_URL` 配置 |
-| ✅2 | Claude 模型 ID | 默认 `claude-opus-4-7`（用户当前 session 模型），可在 `llm.yml` 切换 |
+| ✅1 | LLM 集成模式 | **Brainmaster 模式**：Python 通过 subprocess 调用 `claude` CLI，agent 定义在 `.claude/agents/*.md`，输出走 JSON 文件 |
+| ✅2 | AI 模型选型 | 每个 agent 在 frontmatter 里声明 model；`news-analyst` 默认 `sonnet`（足够摘要任务） |
 | ✅3 | GitHub 仓库 | Public repo `dangbuzhudeXNEL/Project_Amarket`，每次 session 末 push |
 | ✅6 | 企微机器人 webhook | 用户 M0 末自行创建（业务推送 + 告警两个机器人，分群） |
 | ✅7 | 后续 Spec 节奏 | 先完整完成 Spec #1（M0-M6）再开始 Spec #2 brainstorming |
+| ✅11 | Tier 2 LLM SDK fallback | **MVP 不启用**；架构预留；用户后续按需在 `agents.yml` 开启 |
 
 ### 仍需用户在 M0 实施前确认
 
@@ -1337,9 +1524,8 @@ MVP 不依赖 hooks，纯靠 CLAUDE.md 文档约束即可。
 |---|------|------|---------|
 | ❓4 | 代码许可证 | 暂不加 LICENSE（个人项目） | M0 末 push 远程前 |
 | ❓5 | 数据库种子数据 | 1 个用户（"me", Asia/Shanghai）+ 4 个新闻源（cls/eastmoney/sina/wallstreet 均 enabled） | M0 末 |
-| ❓8 | localhost 代理实际端口 | 占位 `http://localhost:XXXX`，等用户提供 | M0 末填 `.env` |
-| ❓9 | 业务推送 + 告警的企微机器人 webhook URL | 占位，等用户创建后填 | M0 末填 `.env` |
-| ❓10 | LLM 调用是否需要 API key | 取决于本地代理认证机制，可能为空 | M0 末确认 |
+| ❓8 | Claude CLI 在 PATH | 验证 `claude --version` 在 Git Bash 能跑（用户的 Claude Code 已经在用，应该没问题） | M0 末 |
+| ❓9 | 企微机器人 webhook URL | 占位，等用户创建后填 | M0 末填 `.env` |
 
 ---
 
