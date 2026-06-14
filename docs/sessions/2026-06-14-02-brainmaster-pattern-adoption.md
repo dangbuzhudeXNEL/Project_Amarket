@@ -166,3 +166,33 @@ Brainmaster 模式 = "Claude Code as LLM Backend"
 - `Edit` — spec 重写
 - `Write` — 新建 agent + command 定义
 - `Bash` — git 操作
+
+---
+
+## 🏁 Session 结束（2026-06-14 23:00）
+
+用户决定本日 session 到此为止，下次 session 继续。
+
+### 收尾检查（CLAUDE.md Session 结束 Checklist）
+
+- [x] `docs/PROJECT_STATE.md` 已更新（标注 session 结束，明确下次接力点）
+- [x] 本 session log 已写完
+- [x] `CHANGELOG.md` 已更新（含 Brainmaster 模式架构调整段）
+- [x] 所有变更已 commit（`b1cdf44`）+ push origin main
+- [x] 本次收尾 commit + push（即将做）
+
+### 下次 session 启动者必读
+
+按 `CLAUDE.md` 顶部 Session 启动 Checklist 走：
+1. 读 `CLAUDE.md`
+2. 读 `docs/PROJECT_STATE.md` ← 现在已经标注好"下次必读 3 件事"
+3. 读本 session log + session 01 log
+4. `git log --oneline -10`
+5. `git status`
+
+读完后第一个动作：**询问用户 Spec v2 的审阅结论**（PROJECT_STATE.md 已给出两条分叉的处理路径）。
+
+### 一句话总结
+
+> Day 1 结束，从 0 起步建出 4 commits、~2000 行文档、1 个 agent 定义、1 个 GitHub repo。下次开始写实施计划。
+
