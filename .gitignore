@@ -63,6 +63,11 @@ data/
 .env
 .env.local
 .env.*.local
+PAT.txt
+*.pat
+*PAT*
+secrets/
+credentials/
 
 # ===== IDE =====
 .vscode/

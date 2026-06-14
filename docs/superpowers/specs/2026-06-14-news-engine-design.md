@@ -29,7 +29,8 @@
 - [13. 实施里程碑](#13-实施里程碑)
 - [14. 安全与合规](#14-安全与合规)
 - [15. 未来扩展点](#15-未来扩展点)
-- [16. 待用户确认事项](#16-待用户确认事项)
+- [16. 多 Session 开发支持](#16-多-session-开发支持)
+- [17. 待用户确认事项](#17-待用户确认事项)
 
 ---
 
@@ -76,7 +77,7 @@
 | 基础设施 | 配置加载、密钥管理、日志、调度、Metrics、健康检查、SQLite + Alembic 迁移、Streamlit UI 框架、FastAPI 后端 |
 | 新闻采集 | 财联社 / 东方财富 7x24 / 新浪 7x24 / 华尔街见闻 四源接入 |
 | 新闻处理 | 跨源去重（SimHash）、规则分类（财报/政策/行业/公司/宏观）、Breaking 判定（来源 + 关键词） |
-| AI 增强 | Claude API 集成（默认 `claude-sonnet-4-x`，具体 model id 在 `llm.yml` 中 pin）、Prompt 模板（Jinja2）、Prompt 缓存、降级链（Claude → DeepSeek → 原文） |
+| AI 增强 | Claude API 集成（默认 `claude-opus-4-7`，走用户本地 localhost 代理；可配置切 Sonnet 或其他 model id）、Prompt 模板（Jinja2）、Prompt 缓存、降级链（Claude → DeepSeek → 原文） |
 | 推送 | 企业微信群机器人（主渠道）、Telegram Bot adapter（仅 stub 实现） |
 | UI | Streamlit 5 页：总览 / 新闻列表 / 推送日志 / 配置编辑 / 测试工具 |
 | CLI | Typer 命令行：手动触发推送、查询、健康检查、数据库迁移 |
@@ -116,7 +117,7 @@
 | **主语言** | Python 3.11+ | 量化生态最强；类型 hints 完善 |
 | **数据源策略** | akshare + efinance + yfinance + RSS（Spec #2 主用） | 免费可控；多源抽象 + 路由后期可加付费源 |
 | **新闻源** | 财联社 / 东财 7x24 / 新浪 7x24 / 华尔街见闻 | 覆盖国内主流 breaking 90% 以上 |
-| **LLM** | Claude (Anthropic API)，默认 Sonnet（具体 model id 在 `llm.yml` 配置，如 `claude-sonnet-4-5`、`claude-sonnet-4-7` 等，实施时 pin 当时最新版本）；`LLMProvider` 接口预留 DeepSeek / 通义 / 本地 | 用户已有 Anthropic 接入；Sonnet 性价比 vs Opus 显著更好 |
+| **LLM** | Claude (Anthropic API)，默认 `claude-opus-4-7`，通过本地 localhost 代理（用户已有 Claude Code 接入）；`LLMProvider` 接口预留 DeepSeek / 通义 / 本地 Ollama | 用户提供本地代理，零边际成本；后续如成本/速率压力大可降级 Sonnet |
 | **盘前推送** | 工作日 08:30 一次（节假日跳过） | 信息集中、低打扰、适合上班族 |
 | **Breaking 判定** | 纯规则：高优来源 + 关键词命中 → 立即推；其他不推 | 延迟低、可预测、成本 0；可演进 |
 | **推送渠道** | 企业微信群机器人（主） + Telegram Bot（仅 adapter stub） | 中国大陆稳定；架构多渠道可插拔 |
@@ -612,18 +613,22 @@ ui:
 **`llm.yml`**
 ```yaml
 default_provider: claude
-default_model: claude-sonnet-4-5  # 实施时 pin 当时最新 Sonnet model id（如 claude-sonnet-4-7 等），参考 https://docs.anthropic.com/en/docs/about-claude/models
+default_model: claude-opus-4-7  # 用户当前 session 模型；可改 sonnet 省成本
 fallback_chain:
   - claude
   - deepseek
+
 providers:
   claude:
-    model: claude-sonnet-4-5
+    model: claude-opus-4-7
     max_tokens: 2000
     temperature: 0.3
-    timeout_seconds: 30
+    timeout_seconds: 60   # opus 比 sonnet 慢，给宽点
     enable_prompt_cache: true
     api_key_env: ANTHROPIC_API_KEY
+    # 当 base_url_env 有值时走本地/自定义代理（如 Claude Code Router、LiteLLM）
+    # 留空则走 Anthropic 官方 API
+    base_url_env: ANTHROPIC_BASE_URL
   deepseek:
     model: deepseek-chat
     max_tokens: 2000
@@ -632,6 +637,14 @@ providers:
     api_key_env: DEEPSEEK_API_KEY
     base_url: https://api.deepseek.com
 ```
+
+> **本地代理说明**：用户当前的开发环境通过 localhost 代理（如 [claude-code-router](https://github.com/musistudio/claude-code-router) / LiteLLM / 自建反代）将本地 Claude Code 订阅暴露为标准 Anthropic 兼容 API。MVP 配置：
+> ```bash
+> # .env
+> ANTHROPIC_API_KEY=any-string-if-proxy-doesnt-require
+> ANTHROPIC_BASE_URL=http://localhost:XXXX  # M0 实施时确认实际端口
+> ```
+> 若不设 `ANTHROPIC_BASE_URL`，SDK 默认走 `https://api.anthropic.com`，付费走真实 API。
 
 **`sources.yml`**
 ```yaml
@@ -902,7 +915,9 @@ jobs:
 
 ```
 Project_Amarket/
-├── README.md
+├── README.md                   # 项目介绍 + 快速开始
+├── CLAUDE.md                   # 🆕 Claude Code 项目记忆 + 新 session 启动 checklist
+├── CHANGELOG.md                # 🆕 用户视角的"做了什么"
 ├── pyproject.toml              # uv 项目配置
 ├── uv.lock
 ├── .env.example
@@ -912,10 +927,19 @@ Project_Amarket/
 ├── start.sh                    # Linux/macOS 一键启动脚本
 │
 ├── docs/
+│   ├── PROJECT_STATE.md        # 🆕 项目"现在到哪了"快照（每次 session 末更新）
+│   ├── sessions/               # 🆕 每次开发 session 的日志
+│   │   └── 2026-06-14-01-brainstorm-and-spec.md
+│   ├── adr/                    # 🆕 架构决策记录（重大决策时新增）
 │   └── superpowers/
 │       ├── specs/
 │       │   └── 2026-06-14-news-engine-design.md   ← 本文件
 │       └── plans/              # 实施计划（下一步用 writing-plans 生成）
+│
+├── scripts/
+│   └── watchdog/               # 🆕 外部 watchdog 脚本（独立于主进程）
+│       ├── watchdog.ps1        # Windows Task Scheduler 调用
+│       └── watchdog.sh         # Linux systemd timer 调用
 │
 ├── config/
 │   ├── app.yml
@@ -1160,17 +1184,162 @@ Project_Amarket/
 
 ---
 
-## 16. 待用户确认事项
+## 16. 多 Session 开发支持
 
-以下事项尚未完全敲定，建议在实施开始前确认。**未确认时使用方括号内的默认值**：
+本项目预期会经历**多次开发 session（每次可能由不同的 Claude session 接力）**，必须有一套**任意一个新 session 在 1 分钟内能"接得住"**前面进度的机制。
 
-1. **Anthropic API 接入方式**：MVP 默认使用 `ANTHROPIC_API_KEY` 环境变量调用 Anthropic 官方 API（按 token 计费）。是否有特殊的 Bedrock/Vertex/中转方式？[默认：官方 API]
-2. **Claude 模型 ID**：实施 M0 前请 pin 当时最新 Sonnet 4.x model id（如 `claude-sonnet-4-5`、`claude-sonnet-4-7` 等）。是否在某些场景升级到 `opus`？[默认：Sonnet 4.x 全场景统一；仅当成本/质量出现明显问题时切 Opus]
-3. **GitHub 仓库**：是否需要推送到远程？私有/公开？[默认：暂只本地，需要时再加 remote]
-4. **代码许可证**：[默认：暂不加 LICENSE，个人项目]
-5. **数据库初始内容**：MVP 启动需要哪些种子数据？默认会插入：1 个用户 + 4 个新闻源记录
-6. **企微机器人 webhook**：你需要自行在企业微信群创建机器人并把 webhook 填入 `.env.WEWORK_BOT_WEBHOOK_URL`
-7. **是否提交后续 Spec 设计**：本文档完成后，是否立刻开始 Spec #2（行情数据 + 回测）的 brainstorming？[默认：先完成 Spec #1 实施再开始 Spec #2]
+### 16.1 知识沉淀工件清单
+
+| 工件 | 角色 | 更新频率 |
+|------|------|---------|
+| `CLAUDE.md`（项目根） | 项目身份卡 + 新 session 启动 checklist + 命令速查 | 当架构/规范/命令有变化时 |
+| `docs/PROJECT_STATE.md` | "现在到哪了"快照：当前里程碑、活跃任务、最近决策、阻塞、下一步 | **每次 session 结束** |
+| `docs/sessions/YYYY-MM-DD-NN-<topic>.md` | 时间序列日志：本次目标、做了什么、决策、commits、下次接力点 | **每次 session 结束新建一篇** |
+| `CHANGELOG.md` | 用户视角的"做了什么"，按里程碑分组 | 当里程碑完成或重要功能上线 |
+
+### 16.2 Session 启动协议（新 session 第一件事）
+
+每个新 session 开始时，按顺序执行：
+
+```
+1. 读 CLAUDE.md                        # 项目身份和导航
+2. 读 docs/PROJECT_STATE.md            # 当前状态快照
+3. 读 docs/sessions/ 最新一篇          # 上次干了啥、下次该干啥
+4. git log --oneline -10               # 最近提交
+5. git status                          # 工作区状态
+6. （可选）gh pr list                  # 在做的 PR
+7. （可选）gh issue list --assignee @me  # 我领的 issue
+```
+
+这套 checklist 内置在 `CLAUDE.md`，新 session 一打开 Claude Code 就会自动读到。
+
+### 16.3 Session 结束协议（每次 session 收尾）
+
+```
+1. 更新 docs/PROJECT_STATE.md          # "现在到哪了"
+2. 新建 docs/sessions/YYYY-MM-DD-NN-<topic>.md  # 本次日志
+3. 如有里程碑变化，更新 CHANGELOG.md
+4. git add -A && git commit -m "session: <topic>"
+5. git push origin main
+```
+
+### 16.4 Session log 模板
+
+```markdown
+# Session YYYY-MM-DD-NN — <Topic>
+
+**Duration**: HH:MM - HH:MM (Xh)
+**Participants**: User + Claude (model: opus-4.7 / sonnet-4-x / ...)
+**Goal**: 一句话目标
+
+## 本次目标
+- [ ] 目标 1
+- [ ] 目标 2
+
+## 实际进展
+- [x] 已完成的事项
+- [ ] 半成品 / 阻塞
+
+## 关键决策
+- 决策 1：xxx，理由：xxx
+- 决策 2：xxx
+
+## 产出（文件 / commits / PR）
+- 新增/修改：file1, file2
+- Commits: hash1 (msg), hash2 (msg)
+- PRs: #N
+
+## 阻塞 / 待解
+- 阻塞 1：xxx
+- 需用户决策：xxx
+
+## 下一次 session 接力点
+**首要任务**：xxx
+**先读**：docs/PROJECT_STATE.md → 本文件 → 然后开始 xxx
+```
+
+### 16.5 PROJECT_STATE.md 模板
+
+```markdown
+# Project State — Last Updated YYYY-MM-DD HH:MM
+
+## 当前阶段
+**Spec**: #1 (基础设施 + 新闻引擎)
+**Milestone**: M0 / M1 / ...
+**Sprint progress**: X/Y 任务完成
+
+## 活跃任务
+- [ ] 任务 1（owner: claude）
+- [ ] 任务 2（owner: user）
+
+## 最近 3 个决策
+1. ...
+2. ...
+3. ...
+
+## 阻塞
+- 阻塞 1
+- 阻塞 2
+
+## 下一步
+1. 立即要做：xxx
+2. 接下来：yyy
+
+## 重要环境/配置变化
+- 比如：新增 X 依赖、Y 配置项调整
+
+## 文档地图（去哪找什么）
+- 设计：docs/superpowers/specs/
+- 计划：docs/superpowers/plans/
+- 历次 session：docs/sessions/
+- 决策记录（ADR）：docs/adr/（可选，当出现重大决策时新增）
+```
+
+### 16.6 CLAUDE.md 框架
+
+`CLAUDE.md` 是 Claude Code **自动加载**的项目记忆，至少包含：
+- 项目身份（一段话讲清是干啥的）
+- 当前所在阶段（链向 PROJECT_STATE.md）
+- 技术栈与关键命令（开发/测试/启动/部署一键命令）
+- 项目结构地图（关键目录用途）
+- 编码规范与约束（类型 hint 必加、日志走 structlog、密钥不可硬编码 等）
+- Session 启动 checklist（指向 Section 16.2）
+- Session 结束 checklist（指向 Section 16.3）
+- 链接到关键文档
+
+### 16.7 与 Claude Code Hooks 的可选集成
+
+未来可通过 Claude Code 的 hooks 系统进一步固化协议（不强制）：
+- `SessionStart` hook：自动 `cat docs/PROJECT_STATE.md`
+- `Stop` hook：提醒"是否更新了 PROJECT_STATE.md？是否写了 session log？"
+
+MVP 不依赖 hooks，纯靠 CLAUDE.md 文档约束即可。
+
+---
+
+## 17. 待用户确认事项
+
+> 本节记录 spec 已用默认值/已确认的事项，以及实施 M0 前还需要用户提供的具体值。
+
+### 已确认（2026-06-14 brainstorming session）
+
+| # | 事项 | 决议 |
+|---|------|------|
+| ✅1 | Anthropic API 接入方式 | 走用户本地 localhost 代理（如 claude-code-router / LiteLLM），通过 `ANTHROPIC_BASE_URL` 配置 |
+| ✅2 | Claude 模型 ID | 默认 `claude-opus-4-7`（用户当前 session 模型），可在 `llm.yml` 切换 |
+| ✅3 | GitHub 仓库 | Public repo `dangbuzhudeXNEL/Project_Amarket`，每次 session 末 push |
+| ✅6 | 企微机器人 webhook | 用户 M0 末自行创建（业务推送 + 告警两个机器人，分群） |
+| ✅7 | 后续 Spec 节奏 | 先完整完成 Spec #1（M0-M6）再开始 Spec #2 brainstorming |
+
+### 仍需用户在 M0 实施前确认
+
+| # | 事项 | 默认 | 何时确认 |
+|---|------|------|---------|
+| ❓4 | 代码许可证 | 暂不加 LICENSE（个人项目） | M0 末 push 远程前 |
+| ❓5 | 数据库种子数据 | 1 个用户（"me", Asia/Shanghai）+ 4 个新闻源（cls/eastmoney/sina/wallstreet 均 enabled） | M0 末 |
+| ❓8 | localhost 代理实际端口 | 占位 `http://localhost:XXXX`，等用户提供 | M0 末填 `.env` |
+| ❓9 | 业务推送 + 告警的企微机器人 webhook URL | 占位，等用户创建后填 | M0 末填 `.env` |
+| ❓10 | LLM 调用是否需要 API key | 取决于本地代理认证机制，可能为空 | M0 末确认 |
 
 ---
 
