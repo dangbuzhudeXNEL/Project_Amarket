@@ -56,7 +56,7 @@
 
 **功能性**：
 - 工作日每天 08:30 准时推送 1 次盘前汇总（成功率 ≥ 99%）
-- 盘中 breaking news 平均延迟 < 2 分钟（从新闻发布到推送到达）
+- 盘中 breaking news 平均延迟 < 2 分钟（定义：从 `published_at` 时间戳到 `push_records.sent_at` 时间戳）
 - 推送内容主观可读、信息密度合理，不产生"消息轰炸"
 
 **工程性**：
@@ -76,7 +76,7 @@
 | 基础设施 | 配置加载、密钥管理、日志、调度、Metrics、健康检查、SQLite + Alembic 迁移、Streamlit UI 框架、FastAPI 后端 |
 | 新闻采集 | 财联社 / 东方财富 7x24 / 新浪 7x24 / 华尔街见闻 四源接入 |
 | 新闻处理 | 跨源去重（SimHash）、规则分类（财报/政策/行业/公司/宏观）、Breaking 判定（来源 + 关键词） |
-| AI 增强 | Claude API 集成（默认 Sonnet 4.7）、Prompt 模板（Jinja2）、Prompt 缓存、降级链（Claude → DeepSeek → 原文） |
+| AI 增强 | Claude API 集成（默认 `claude-sonnet-4-x`，具体 model id 在 `llm.yml` 中 pin）、Prompt 模板（Jinja2）、Prompt 缓存、降级链（Claude → DeepSeek → 原文） |
 | 推送 | 企业微信群机器人（主渠道）、Telegram Bot adapter（仅 stub 实现） |
 | UI | Streamlit 5 页：总览 / 新闻列表 / 推送日志 / 配置编辑 / 测试工具 |
 | CLI | Typer 命令行：手动触发推送、查询、健康检查、数据库迁移 |
@@ -116,7 +116,7 @@
 | **主语言** | Python 3.11+ | 量化生态最强；类型 hints 完善 |
 | **数据源策略** | akshare + efinance + yfinance + RSS（Spec #2 主用） | 免费可控；多源抽象 + 路由后期可加付费源 |
 | **新闻源** | 财联社 / 东财 7x24 / 新浪 7x24 / 华尔街见闻 | 覆盖国内主流 breaking 90% 以上 |
-| **LLM** | Claude (Anthropic API)，默认 `claude-sonnet-4.7`；`LLMProvider` 接口预留 DeepSeek / 通义 / 本地 | 用户已有 Anthropic 接入；Sonnet 性价比 vs Opus 显著更好 |
+| **LLM** | Claude (Anthropic API)，默认 Sonnet（具体 model id 在 `llm.yml` 配置，如 `claude-sonnet-4-5`、`claude-sonnet-4-7` 等，实施时 pin 当时最新版本）；`LLMProvider` 接口预留 DeepSeek / 通义 / 本地 | 用户已有 Anthropic 接入；Sonnet 性价比 vs Opus 显著更好 |
 | **盘前推送** | 工作日 08:30 一次（节假日跳过） | 信息集中、低打扰、适合上班族 |
 | **Breaking 判定** | 纯规则：高优来源 + 关键词命中 → 立即推；其他不推 | 延迟低、可预测、成本 0；可演进 |
 | **推送渠道** | 企业微信群机器人（主） + Telegram Bot（仅 adapter stub） | 中国大陆稳定；架构多渠道可插拔 |
@@ -260,6 +260,7 @@ python -m amarket  →  启动一个进程，内含：
 - **任务清单**：
   - `premarket_push`：工作日 08:25 触发（08:30 完成推送）
   - `realtime_poll`：交易时段每 60s（9:25-11:35, 12:55-15:05）
+  - `weekend_archive_poll`：非交易日（周末 + 节假日）每 30 分钟低频归档入库，不推送
   - `health_self_check`：每 5 分钟自检并暴露
 
 #### 5.1.7 `ObservabilityService`（可观察性服务）
@@ -281,11 +282,14 @@ class NewsSource(Protocol):
     def health_check(self) -> SourceHealth: ...
 ```
 
-每个实现按"先 HTTP 抓取 → 解析 HTML/JSON → 标准化为 `RawNewsItem`"流水线。具体来源接入方式：
-- **财联社**：抓 `https://www.cls.cn/telegraph` HTML 或 `nodeapi.cls.cn` JSON 接口
-- **东方财富 7x24**：抓 `https://kuaixun.eastmoney.com/` 或 API
-- **新浪 7x24**：抓 `https://finance.sina.com.cn/7x24/`
-- **华尔街见闻**：抓 `https://wallstreetcn.com/live/global` 或 API
+每个实现按"先 HTTP 抓取 → 解析 HTML/JSON → 标准化为 `RawNewsItem`"流水线。具体来源接入方式 **需在 M1/M2 实施阶段实地调研、抓包确认**（下列仅为初步推测，发现实际端点可能变化）：
+
+- **财联社**：候选入口 `https://www.cls.cn/telegraph`（HTML 抓取）或抓包发现的 JSON 接口
+- **东方财富 7x24**：候选入口 `https://kuaixun.eastmoney.com/`（公开 API 或抓包）
+- **新浪 7x24**：候选入口 `https://finance.sina.com.cn/7x24/`（HTML 抓取或 RSS）
+- **华尔街见闻**：候选入口 `https://wallstreetcn.com/live/global`（API 或 RSS）
+
+⚠️ **接入预期**：M1/M2 实施时需为每个源单独写 adapter，建立 fixtures（保存真实响应样本），保证回归测试稳定。源 API/HTML 结构变化是常见维护成本。
 
 ⚠️ **合规注意**：所有抓取需设置合理 User-Agent、遵守 robots.txt、控制频率（< 1 req/s/source），避免被封 IP。
 
@@ -419,7 +423,7 @@ sectors         JSON  -- [{name, weight}]
 keywords        JSON  -- [str]
 summary         TEXT  -- AI 生成的摘要
 is_breaking     BOOLEAN DEFAULT FALSE
-processed_by    TEXT  -- 'rule'|'llm:claude-sonnet-4.7'|...
+processed_by    TEXT  -- 'rule'|'llm:claude-sonnet-4-x'|...
 processed_at    DATETIME
 UNIQUE (news_id, processed_by)
 INDEX (is_breaking, processed_at)
@@ -480,8 +484,8 @@ created_at      DATETIME
 ### 6.5 时间与节假日
 
 - **存储统一 UTC**，显示按用户时区（默认 `Asia/Shanghai`）
-- 交易日历用 `chinese-calendar` Python 库；备用 `akshare.tool_trade_date_hist_sina()` 缓存到 `data/trade_calendar.json`
-- 节假日跳过盘前 / 盘中调度；周末仍收集新闻入库，不主动推送
+- 交易日历用 `chinese-calendar` Python 库（PyPI 上保持年度更新，使用时 pin 当时最新版）；备用 `akshare.tool_trade_date_hist_sina()` 缓存到 `data/trade_calendar.json`
+- 节假日跳过盘前 / 盘中调度；周末仍以**低频归档模式**（每 30 分钟）收集新闻入库，不主动推送（用于后续回顾分析）
 
 ---
 
@@ -506,7 +510,7 @@ created_at      DATETIME
   │
   ├─→ AIService.summarize_for_premarket(top_N_items)
   │     ├─→ 渲染 prompts/summarize_premarket.j2
-  │     ├─→ LLMProvider.complete(claude-sonnet-4.7)
+  │     ├─→ LLMProvider.complete(<sonnet-model-id-from-config>)
   │     │     prompt: "你是A股资深分析师..."
   │     │     输出: Markdown 格式 5 段（夜美股/政策/公司/行业/重点）
   │     └─→ 失败 → 降级 DeepSeek → 仍失败 → 走"原文头条列表"模板
@@ -548,7 +552,7 @@ APScheduler 每 60s 触发 realtime_poll_job()
 ### 7.3 AI 调用降级链
 
 ```
-AIService.summarize(prompt_id, vars, model='claude-sonnet-4.7')
+AIService.summarize(prompt_id, vars, model=<sonnet-model-id-from-config>)
   │
   ├─→ PromptCache.lookup(hash(prompt_id, vars)) [TTL 24h]
   │     └─→ HIT → 返回缓存
@@ -608,7 +612,7 @@ ui:
 **`llm.yml`**
 ```yaml
 default_provider: claude
-default_model: claude-sonnet-4-5  # 或写实际 4.7 model id
+default_model: claude-sonnet-4-5  # 实施时 pin 当时最新 Sonnet model id（如 claude-sonnet-4-7 等），参考 https://docs.anthropic.com/en/docs/about-claude/models
 fallback_chain:
   - claude
   - deepseek
@@ -696,6 +700,10 @@ jobs:
       - { start: "09:25", end: "11:35" }
       - { start: "12:55", end: "15:05" }
     skip_holidays: true
+  - id: weekend_archive_poll   # 周末/节假日低频归档（仅入库不推送）
+    enabled: true
+    interval_seconds: 1800   # 每 30 分钟
+    only_on_non_trading_days: true
   - id: health_self_check
     enabled: true
     interval_seconds: 300
@@ -756,6 +764,8 @@ LOG_LEVEL=INFO
 | 推送渠道失败 | 3 次指数退避 → 切换备用渠道 | 备用也失败 |
 | 数据库不可用 | 关键写操作进内存队列、恢复后重放 | 30 秒未恢复 |
 | 调度器卡死 | 外部 watchdog（每 5 分钟 ping `/healthz`）+ 自动重启脚本 | 单次未响应 |
+
+> **Watchdog 归属说明**：watchdog 是一个**与主应用进程独立**的小脚本（Windows 用 Task Scheduler 注册 `watchdog.ps1`，每 5 分钟运行一次；Linux 用 systemd timer 或 cron）。其唯一职责是 `curl /healthz`，超时或返回非 healthy 时执行 `taskkill /F /IM uvicorn.exe` 然后重启 `start.bat`。脚本本身放在 `scripts/watchdog/`。
 
 ### 9.2 日志策略
 
@@ -1155,7 +1165,7 @@ Project_Amarket/
 以下事项尚未完全敲定，建议在实施开始前确认。**未确认时使用方括号内的默认值**：
 
 1. **Anthropic API 接入方式**：MVP 默认使用 `ANTHROPIC_API_KEY` 环境变量调用 Anthropic 官方 API（按 token 计费）。是否有特殊的 Bedrock/Vertex/中转方式？[默认：官方 API]
-2. **Claude 模型 ID**：使用 `claude-sonnet-4-5` 还是更新的版本？是否在某些场景升级到 `opus`？[默认：Sonnet 4.5/4.7 全场景统一]
+2. **Claude 模型 ID**：实施 M0 前请 pin 当时最新 Sonnet 4.x model id（如 `claude-sonnet-4-5`、`claude-sonnet-4-7` 等）。是否在某些场景升级到 `opus`？[默认：Sonnet 4.x 全场景统一；仅当成本/质量出现明显问题时切 Opus]
 3. **GitHub 仓库**：是否需要推送到远程？私有/公开？[默认：暂只本地，需要时再加 remote]
 4. **代码许可证**：[默认：暂不加 LICENSE，个人项目]
 5. **数据库初始内容**：MVP 启动需要哪些种子数据？默认会插入：1 个用户 + 4 个新闻源记录
