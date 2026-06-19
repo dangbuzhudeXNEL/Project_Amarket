@@ -41,6 +41,7 @@ def _ensure_utf8_streams() -> None:
         with contextlib.suppress(AttributeError, OSError):
             _stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
 
+
 app = typer.Typer(
     name="amarket",
     help="Project_Amarket — A 股新闻分析 + 行情看板平台 CLI（永不实盘）",

@@ -1,0 +1,60 @@
+# AI Provider 配置 — Spec v3 §12.2
+# M2 起两条路径共存（Brainmaster + SDK），可在此调整优先级 / 启用状态。
+
+# ============================================================
+# Tier 1（主）: Brainmaster — subprocess 调本地 claude CLI
+# 零 API key 需求，复用 Claude Code 订阅
+# ============================================================
+brainmaster:
+  enabled: true
+  cli_path: claude              # PATH 中可直接调用；否则填绝对路径
+  default_timeout_seconds: 120  # 单条新闻分析 2 分钟上限
+  cwd: .                        # subprocess 工作目录 = 项目根
+  agents:
+    - name: news-classifier-realtime
+      description: 单条新闻 18 字段深度分析
+      max_turns: 8
+    - name: news-analyst
+      description: 盘前 / 6 时段日报汇总 (M4+ 启用)
+      max_turns: 30
+    - name: daily-report-writer
+      description: 长文日报生成 (M4+ 启用)
+      max_turns: 50
+
+# ============================================================
+# Tier 2/3（备）: SDK provider — 走 API key
+# ============================================================
+fallback_sdk:
+  enabled: true                 # 即便 Brainmaster 可用，仍允许 SDK 介入做 fallback
+
+  providers:
+    anthropic:
+      enabled: true
+      model: claude-sonnet-4-5   # 实施时 pin 实际 model id
+      max_tokens: 1500
+      temperature: 0.3
+      timeout_seconds: 30
+      api_key_env: ANTHROPIC_API_KEY
+      base_url_env: ANTHROPIC_BASE_URL    # 可选：走 localhost proxy
+
+    deepseek:
+      enabled: true
+      model: deepseek-chat
+      max_tokens: 1500
+      temperature: 0.3
+      timeout_seconds: 30
+      api_key_env: DEEPSEEK_API_KEY
+      base_url: https://api.deepseek.com   # 固定值，不走 env
+
+  # 多个 SDK 同时配置时的优先级（越靠前优先）
+  priority_order:
+    - anthropic
+    - deepseek
+
+# ============================================================
+# 整体降级链顺序
+# ============================================================
+# 实际生效顺序由 factory.build_default_ai_provider 决定：
+#   1. brainmaster (如 enabled)
+#   2. fallback_sdk.providers (按 priority_order)
+#   3. 全部失败 → 调用方降级到 SimpleRuleScorer（仅规则评分）

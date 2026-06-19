@@ -11,6 +11,62 @@ Each Spec corresponds to a major milestone. Within a Spec, M0-M9 are intermediat
 
 ## [Unreleased] — Spec #1 v3 进行中
 
+### Added — Phase 1 M2-a + M2-g 开场（2026-06-19, Session 06, branch `feat/m2-news-processing`）
+
+**M2-a 规则配置 + M2-g 双路径 AI 架构** ✅（M2 后续 b/c/d/e/f/h/i/j/k 下次 session）
+
+#### M2-a：规则配置文件
+- `config/keywords.yml` — 60+ 突发关键词词典（含权重、关联类别、紧急度加分、情绪 hint）+ 黑名单（广告/导购过滤）
+- `config/sectors.yml` — 14+ 板块映射表（AI算力/半导体/CPO/PCB/新能源车/光伏储能/创新药/消费/券商/地产链/红利/军工/低空经济/有色金属/出海链）+ 每板块 4-8 个代表个股
+- `config/classification.yml` — 8 类一级分类规则（宏观政策/风险事件/公司公告/资金流/海外映射/大宗商品/市场行情/交易提示）+ priority 排序 + multi_label 配置
+
+#### M2-g：Brainmaster + SDK 双路径 AI 架构（核心）
+- **`AIProvider` Protocol**：统一 AI 调用入口，Service 层只 import 这里
+- **`ClaudeAgentRunner`**（Tier 1 主，Brainmaster 模式）
+  - subprocess 调本地 claude CLI + agent 文件输出 JSON
+  - **零 API key 需求**（复用 Claude Code 订阅）
+  - 校验链：exit=0 + 文件 mtime 已更新 + JSON valid + 必需字段齐
+  - 失败分级：AIError / AIAgentDegradedError / AIAgentTimeoutError
+  - asyncio.to_thread 包装阻塞 subprocess.run
+- **`AnthropicSDKProvider`**（Tier 2 备）
+  - 走 ANTHROPIC_API_KEY；支持 ANTHROPIC_BASE_URL（localhost proxy）
+  - 默认 model: claude-sonnet-4-5（max_tokens=1500，temperature=0.3）
+- **`DeepSeekSDKProvider`**（Tier 3 备）
+  - 兼容 OpenAI SDK 协议（openai package）
+  - 用 response_format=json_object 强制 JSON 输出
+- **`FallbackChainProvider`**
+  - 按优先级 try-then-fallback；任一子 provider AIError 自动切下一个
+  - 全部失败 → 抛 AIError（调用方降级到 SimpleRuleScorer）
+  - `children_health()` 暴露各子 provider 状态
+- **`build_default_ai_provider()`** factory
+  - 默认创建 [ClaudeAgentRunner, AnthropicSDK, DeepSeekSDK] 链
+  - 可单独禁用任一 tier（M2 后期可在 dashboard 切换）
+- **`.claude/agents/news-classifier-realtime.md`** — agent 定义
+  - YAML frontmatter: sonnet / 8 turns / Read+Write+Glob+Grep 工具
+  - 输入：`data/ai/inputs/<news_id>.json`（NewsAnalysisRequest schema）
+  - 输出：`data/ai/outputs/<news_id>.json`（NewsAnalysisResult schema）
+  - 严格输出契约 + 5 类异常处理 + 5 个禁止项（不允许"买入/卖出"具体指令）
+- **`config/agents.yml`** — 完整配置：brainmaster + fallback_sdk + priority_order
+- **测试**：`tests/unit/test_ai_providers.py`
+  - 20 个新 test：ClaudeAgentRunner happy / degraded / timeout / error / health 4 路径
+  - AnthropicSDK / DeepSeekSDK：happy / 无 key 禁用 / JSON 错误处理
+  - FallbackChainProvider：4 种降级路径
+  - Factory：默认/可禁用 tier
+  - Protocol conformance（所有实现都符合 AIProvider Protocol）
+  - 全部 mock subprocess + SDK，不打真 API
+
+### 统计
+- **新增 8 文件**（5 src + 1 agent + 2 config）
+- **111 tests passed** (从 91 → 111, +20 个 AI 测试)
+- **覆盖率 87.70%**
+- Mypy 58 files / Ruff / Pytest 全绿
+
+### 设计要点（提前 Brainmaster 到 M2 vs 原 Spec v3 设计）
+- 原 Spec v3：Phase 1 仅 SDK，Brainmaster 留 Phase 2
+- 用户决策：**Phase 1 M2 起就提供 Brainmaster + SDK 双路径**（一个 fallback chain）
+  - 优点：零 API key 启动 + 同时兼容 SDK；架构灵活
+  - Brainmaster + SDK 走同一个 `AIProvider` Protocol，Service 层一行代码切换
+
 ### Added — Phase 1 M0 实施完成（2026-06-19, Session 04, branch `feat/m0-project-skeleton`）
 
 **Phase 1 M0：项目骨架 + 小组仓库基础设施** ✅

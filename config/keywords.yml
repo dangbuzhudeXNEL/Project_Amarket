@@ -1,0 +1,107 @@
+# 突发关键词词典 — Spec v3 §8.7 / PRD §6.1, §6.2
+#
+# 用于 M2 NewsClassifier 的"突发判定"+"重要性/紧急度加分"。
+# 命中即视为 breaking 候选；权重越高对评分影响越大。
+#
+# 修改建议：
+# - 增加新词时，先观察 1-2 周真实新闻命中频率再调权重
+# - 黑名单是绝对过滤（避免广告/导购污染）
+
+hot_keywords:
+  # === 监管 / 政策（强信号）===
+  - { value: "央行", weight: 8, categories: ["宏观政策"] }
+  - { value: "证监会", weight: 8, categories: ["宏观政策"] }
+  - { value: "降准", weight: 10, categories: ["宏观政策"] }
+  - { value: "降息", weight: 10, categories: ["宏观政策"] }
+  - { value: "加息", weight: 9, categories: ["宏观政策"] }
+  - { value: "MLF", weight: 7, categories: ["宏观政策"] }
+  - { value: "LPR", weight: 7, categories: ["宏观政策"] }
+  - { value: "国务院", weight: 8, categories: ["宏观政策"] }
+  - { value: "财政部", weight: 7, categories: ["宏观政策"] }
+  - { value: "发改委", weight: 7, categories: ["宏观政策"] }
+
+  # === 紧急词（强信号 — urgency 优先）===
+  - { value: "突发", weight: 10, urgency_bonus: 2 }
+  - { value: "紧急", weight: 9, urgency_bonus: 2 }
+  - { value: "重大", weight: 9 }
+  - { value: "重磅", weight: 8 }
+  - { value: "突袭", weight: 8 }
+
+  # === 公司事件 ===
+  - { value: "立案", weight: 9, categories: ["公司公告", "风险事件"] }
+  - { value: "停牌", weight: 9, categories: ["公司公告", "交易提示"] }
+  - { value: "复牌", weight: 7, categories: ["公司公告", "交易提示"] }
+  - { value: "退市", weight: 9, categories: ["公司公告", "风险事件"] }
+  - { value: "ST", weight: 7, categories: ["公司公告", "风险事件"] }
+  - { value: "财务造假", weight: 10, categories: ["公司公告", "风险事件"] }
+  - { value: "业绩预增", weight: 6, categories: ["公司公告"], sentiment_hint: "positive" }
+  - { value: "业绩预亏", weight: 6, categories: ["公司公告"], sentiment_hint: "negative" }
+  - { value: "回购", weight: 6, categories: ["公司公告"], sentiment_hint: "positive" }
+  - { value: "减持", weight: 6, categories: ["公司公告"], sentiment_hint: "negative" }
+  - { value: "增持", weight: 6, categories: ["公司公告"], sentiment_hint: "positive" }
+  - { value: "并购", weight: 6, categories: ["公司公告"] }
+  - { value: "定增", weight: 6, categories: ["公司公告"] }
+
+  # === 市场异动 ===
+  - { value: "涨停", weight: 7, categories: ["市场行情"], sentiment_hint: "positive" }
+  - { value: "跌停", weight: 7, categories: ["市场行情"], sentiment_hint: "negative" }
+  - { value: "涨停潮", weight: 8, categories: ["市场行情"], sentiment_hint: "positive" }
+  - { value: "跌停潮", weight: 8, categories: ["市场行情"], sentiment_hint: "negative" }
+  - { value: "暴涨", weight: 7, categories: ["市场行情"], sentiment_hint: "positive" }
+  - { value: "暴跌", weight: 7, categories: ["市场行情"], sentiment_hint: "negative" }
+  - { value: "ETF异动", weight: 6, categories: ["市场行情"] }
+
+  # === 风险事件 / 黑天鹅 ===
+  - { value: "黑天鹅", weight: 10, categories: ["风险事件"], urgency_bonus: 2 }
+  - { value: "战争", weight: 10, categories: ["风险事件"], urgency_bonus: 2 }
+  - { value: "制裁", weight: 9, categories: ["风险事件"] }
+  - { value: "违约", weight: 8, categories: ["风险事件"] }
+  - { value: "破产", weight: 9, categories: ["风险事件"] }
+  - { value: "暴雷", weight: 9, categories: ["风险事件"] }
+  - { value: "处罚", weight: 7, categories: ["风险事件"] }
+  - { value: "调查", weight: 7, categories: ["风险事件"] }
+
+  # === 海外映射 ===
+  - { value: "美联储", weight: 8, categories: ["海外映射", "宏观政策"] }
+  - { value: "FOMC", weight: 8, categories: ["海外映射", "宏观政策"] }
+  - { value: "CPI", weight: 7, categories: ["宏观政策"] }
+  - { value: "PCE", weight: 7, categories: ["宏观政策"] }
+  - { value: "非农", weight: 7, categories: ["海外映射", "宏观政策"] }
+  - { value: "纳指", weight: 6, categories: ["海外映射"] }
+  - { value: "标普", weight: 6, categories: ["海外映射"] }
+  - { value: "道指", weight: 6, categories: ["海外映射"] }
+  - { value: "英伟达", weight: 6, categories: ["海外映射"] }
+
+  # === 资金流 ===
+  - { value: "北向", weight: 6, categories: ["资金流"] }
+  - { value: "南向", weight: 6, categories: ["资金流"] }
+  - { value: "两融", weight: 6, categories: ["资金流"] }
+  - { value: "公开市场操作", weight: 6, categories: ["资金流", "宏观政策"] }
+
+  # === 利好 / 利空（通用情绪信号）===
+  - { value: "利好", weight: 5, sentiment_hint: "positive" }
+  - { value: "利空", weight: 5, sentiment_hint: "negative" }
+
+# === 黑名单（命中即过滤，不入库展示）===
+blacklist:
+  # 广告 / 推广
+  - "推广"
+  - "广告"
+  - "招商"
+  - "诚招代理"
+  # 短链 / 二维码诱导
+  - "扫码"
+  - "扫一扫"
+  - "添加微信"
+  - "加好友"
+  # 明显的内容农场标题
+  - "震惊"
+  - "速看"
+  - "必看"
+
+# === 元配置 ===
+config:
+  # 默认 sentiment hint 的强度（hint 影响最终 sentiment 评分时的权重）
+  sentiment_hint_weight: 0.7
+  # urgency_bonus 上限（避免单条新闻 urgency 被堆得太高）
+  max_urgency_bonus: 2
