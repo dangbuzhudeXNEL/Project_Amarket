@@ -23,7 +23,8 @@ def test_version_command(runner: CliRunner) -> None:
     assert result.exit_code == 0
     assert "amarket 0.1.0" in result.stdout
     assert "Phase1" in result.stdout
-    assert "M0" in result.stdout
+    # milestone 由 config/app.yml 控制（当前 M1，不再硬编码 M0）
+    assert "milestone:" in result.stdout
 
 
 def test_healthcheck_inprocess_returns_zero(

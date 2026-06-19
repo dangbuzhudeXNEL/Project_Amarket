@@ -84,7 +84,53 @@ Each Spec corresponds to a major milestone. Within a Spec, M0-M9 are intermediat
 ### Pending — 接下来
 
 - 用户决定 `feat/m0-project-skeleton` 分支 merge 策略（自审 push / open PR / 等小组 review）
-- Phase 1 M1：数据基座（11+ 张完整表 schema + 1 源新闻 + 1 源行情 + NewsRepo + 最小 /api/news）
+- Phase 1 M2：新闻处理（去重 / 分类 / 评分 / P0-P3 决策）
+
+### Added — Phase 1 M1 实施完成（2026-06-19, Session 04 续）
+
+**Phase 1 M1：数据基座 + 3 个新闻源 + 主要指数行情** ✅ 在同一 feature branch
+
+- **DB schema 扩到 16 表**（M0 仅 users）：subscriptions / news_sources / source_health / news_items / news_events / news_analysis / market_snapshots / sector_trends / alerts / reports / push_records / params + param_versions / audit_events / config_versions
+- **Repository 层**（BaseRepo + 6 个）：news / news_event / news_source / source_health / market_snapshot
+- **新闻源 adapters**：
+  - 🟢 EastmoneySource（主，东方财富 7x24，公开 JSON API，priority=high）
+  - 🟢 SinaSource（备，新浪财经 7x24 直播流，priority=medium）
+  - 🟢 YahooFinanceRssSource（备，雅虎财经 RSS，外市场覆盖，priority=medium）
+  - 统一 `NewsSource` Protocol；async；fail-isolation
+- **行情源 adapter**：
+  - AkshareSource（A 股 6 个主要指数：上证 / 深证成指 / 创业板 / 沪深 300 / 上证 50 / 科创 50）
+  - 串行调用绕开 mini_racer 并发 crash（Windows 已知问题）
+- **Service 层**：
+  - NewsCollector（编排多源 + 写 SourceHealth + 单源失败隔离）
+  - MarketDataService（编排行情源 + 落地 market_snapshots）
+- **API endpoints**：
+  - `GET /api/news` (list+filter+paging)
+  - `GET /api/news/{id}` (详情，404 处理)
+  - `GET /api/dashboard/market-status` (从 market_snapshots 读最新)
+  - `GET /api/dashboard/news-sources` (源运维状态)
+- **CLI**：
+  - `amarket collect news [--full]` — 3 源并行抓取（默认 5min realtime / `--full` 拉 12h）
+  - `amarket collect market` — 一次性拉 6 个 A 股主要指数入库
+- **Streamlit dashboard 升级**：
+  - 新增 "📊 主要指数快照" 区域（6 个 metric 卡，颜色随涨跌）
+  - 新增 "📰 最近新闻预览" 区域（含源筛选下拉，超链接到原文）
+  - "🎯 当前 Milestone" 进度扩到 Phase 1 全 16 项（M0/M0+/M1-a~h + M2-M6 占位）
+- **实测端到端**：
+  - `collect news` 真实拉到 **100 条新闻** (eastmoney 50 + sina 30 + yahoo 20，~3.1s)
+  - `collect market` 真实拉到 **6 个 A 股指数** (上证 4090.48 / 深证 16030.70 / 创业板 4252.39 / 沪深 300 4941.60 / 上证 50 2928.75 / 科创 50 1911.51)
+- **测试**：5 个新测试文件 / 35 个新 case
+  - test_news_adapters.py（respx mock 3 源）
+  - test_news_collector.py（stub source 测编排 + 失败隔离）
+  - test_market_akshare.py（monkeypatch ak.stock_zh_index_daily）
+  - test_repositories.py（6 个 repo 关键路径）
+  - test_api_news_dashboard.py（TestClient + in-memory SQLite + StaticPool）
+  - **91 tests passed, 90.14% coverage**
+- **修复 4 个工程坑**：
+  - alembic.ini 中文 em-dash → ASCII (Windows cp1252 locale)
+  - akshare mini_racer 并发 native crash → 改串行调用
+  - Windows console cp1252 输出 emoji 挂 → cli.py 入口 reconfigure stdout=utf-8
+  - SQLite `:memory:` per-connection 隔离 → conftest 用 StaticPool 共享 connection
+- **Milestone 标识**：config/app.yml 的 `current_milestone: M0` → `M1`
 
 ### Added — M0+ 通知预留端到端（2026-06-19, Session 04 续）
 

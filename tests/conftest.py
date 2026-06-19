@@ -56,10 +56,17 @@ def project_root() -> Path:
 
 @pytest.fixture
 def in_memory_engine() -> Generator[Engine, None, None]:
-    """每个测试一个全新的 in-memory SQLite engine + 完整 schema。"""
+    """每个测试一个全新的 in-memory SQLite engine + 完整 schema。
+
+    用 StaticPool 让所有 connection 共享同一 in-memory DB（SQLite `:memory:`
+    默认每 connection 独立，多 connection 会看不到彼此的 schema/data）。
+    """
+    from sqlalchemy.pool import StaticPool
+
     engine = create_engine(
         "sqlite:///:memory:",
         connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
         echo=False,
     )
     SQLModel.metadata.create_all(engine)

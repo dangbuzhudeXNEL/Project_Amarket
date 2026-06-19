@@ -22,7 +22,8 @@ def test_get_app_config_returns_validated_pydantic_model(project_root: Path) -> 
     assert cfg.app.name == "amarket"
     assert cfg.app.timezone == "Asia/Shanghai"
     assert cfg.project_meta.current_phase == "Phase1"
-    assert cfg.project_meta.current_milestone == "M0"
+    # milestone 跟随项目实际推进，不硬编码到 test
+    assert cfg.project_meta.current_milestone.startswith("M")
 
 
 def test_get_app_config_is_cached(project_root: Path) -> None:

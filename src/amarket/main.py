@@ -14,7 +14,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from amarket import __version__
-from amarket.api import health, metrics
+from amarket.api import dashboard, health, metrics, news
 from amarket.core.logging import configure_logging, get_logger
 from amarket.services.config_service import get_app_config, get_env_settings
 
@@ -76,6 +76,10 @@ def create_app() -> FastAPI:
     # System routers
     app.include_router(health.router)
     app.include_router(metrics.router)
+
+    # Business routers (M1+)
+    app.include_router(news.router)
+    app.include_router(dashboard.router)
 
     return app
 
