@@ -5,15 +5,72 @@ All notable changes to **Project_Amarket** are documented here.
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-Each Spec corresponds to a major milestone. Within a Spec, M0-M6 are intermediate releases.
+Each Spec corresponds to a major milestone. Within a Spec, M0-M9 are intermediate releases.
 
 ---
 
-## [Unreleased] — Spec #1 进行中
+## [Unreleased] — Spec #1 v3 进行中
 
-### Added — Design Phase（2026-06-14）
+### Changed — Spec v3: 升格小组联合项目 + 融合 Peersession PRD（2026-06-19）
+
+**重大方向转变**：项目从"个人自用 + 学习"升格为**小组联合项目**。
+
+- **Spec v3 发布**：`docs/superpowers/specs/2026-06-19-spec1-v3-merged.md`（2391 行）
+  - 上一版 Spec v2（`2026-06-14-news-engine-design.md`）保留作为历史
+  - 章节结构以 Peersession PRD 为主线，融合 v2 工程化内容
+  - 双 Phase 划分：
+    - **Phase 1** = 三大模块（新闻 / 交易看板 / 参数配置）+ 6 时段日报 + P0-P3 告警 + 看板 API + 静态 POC + Streamlit 管理面板
+    - **Phase 2** = 原 v2 内容（Brainmaster AI 集成 / 信号交易 / Breaking 实时通道）
+  - 新增章节：§4 用户与场景 / §8 新闻分类与评分体系 / §10 看板与 API 设计 / §11 参数配置模块
+  - 改写章节：§3 决策表（扩到 28 项）/ §5 架构（三大模块边界）/ §6 模块设计（16 个 service）/ §7 数据模型（11+ 张表）/ §9 工作流 / §17 实施里程碑（M0-M9）
+  - 附录 C 给出完整 v2 → v3 章节映射
+
+- **永远不做实盘下单**：显式禁令写入 Spec / CLAUDE.md / CONTRIBUTING / README
+- **AI 集成双路径**：
+  - Phase 1：通过 `AIProvider` 接口走 SDK（Anthropic / DeepSeek 走 API；需要 API key）
+  - Phase 2：通过 `ClaudeAgentRunner` 走 Brainmaster 模式（subprocess + claude CLI + agent 文件输出；零 API key）
+
+### Added — 小组协作工件（2026-06-19）
+
+- **`CONTRIBUTING.md`**：30 分钟 onboarding / 分支策略 / commit 规范 / PR 流程 / 敏感模块（2 人 review）/ 编码规范 / 测试要求 / 文档协议 / AI 协作伙伴约定 / 合规 reminder
+- **`.github/CODEOWNERS`**：模块 owner 映射（占位符待填实际 GitHub 账号）
+- **`.github/PULL_REQUEST_TEMPLATE.md`**：PR 描述模板（背景 / 改动 / 风险与回滚 / 测试 / Checklist）
+
+### Added — 归档与文档（2026-06-19）
+
+- **`docs/peersession-source/`**：归档小组成员原始素材
+  - `a_share_realtime_news_dashboard_prd.md`（来自 2026-06-17）
+  - `a_share_quant_project_timeline.docx`（来自 2026-06-17）
+  - `a_share_quant_project_timeline.extracted.txt`（docx 文本提取）
+
+### Changed — 项目基础文档（2026-06-19）
+
+- **`README.md`** 大改：反映小组联合 + Phase 1/2 + 新核心能力清单
+- **`CLAUDE.md`** 大改：
+  - 项目身份卡更新（性质 = 小组联合 / 双 Phase 路线图 / AI 集成双路径表）
+  - 编码规范扩展（新增"不允许直接 push main" + "不允许引入实盘下单代码"）
+  - YAGNI 列表更新（增"实盘下单"、改"AI" → 双 Phase 表述）
+  - 协作模式扩展（小组角色 + AI 协作约束 + superpowers 使用原则）
+  - 链接更新（v3 作为当前 spec）
+  - 文档地图扩展（CONTRIBUTING / CODEOWNERS / peersession-source）
+- **`docs/PROJECT_STATE.md`** 大改：标注 Session 03 状态 + 下次 session 必读 + 待审阅清单
+
+### Pending — 接下来
+
+- 小组审阅 Spec v3 + 小组协作工件
+- 填实 CODEOWNERS 中 GitHub 账号占位符
+- GitHub 分支保护规则配置（main 需 PR + review）
+- 若直接 M0：用户准备企微 / 飞书 webhook + LLM API key
+- 若先 writing-plans：调用 `superpowers:writing-plans` 撰写 Phase 1 实施计划
+- 进入 Phase 1 M0：项目骨架 + 小组仓库基础设施
+
+---
+
+## [Unreleased] — Spec #1 v2（已被 v3 替代）
+
+### Added — Design Phase v1（2026-06-14）
 - 项目初始化：git 仓库、`.gitignore`、文档目录结构
-- Spec #1 设计文档完成：`docs/superpowers/specs/2026-06-14-news-engine-design.md`
+- Spec #1 v1 设计文档：`docs/superpowers/specs/2026-06-14-news-engine-design.md`
   - 17 个章节 + 2 个附录，约 1500 行
   - 覆盖：架构、模块、数据模型、工作流、错误处理、测试、里程碑、多 session 支持
 - 知识沉淀机制：
@@ -23,7 +80,7 @@ Each Spec corresponds to a major milestone. Within a Spec, M0-M6 are intermediat
   - `CHANGELOG.md` 本文件
 - GitHub public repo 创建：`dangbuzhudeXNEL/Project_Amarket`
 
-### Changed — Architecture Adjustment（2026-06-14, late）
+### Changed — Architecture Adjustment v2（2026-06-14, late）
 - **AI 集成模式从 "Anthropic SDK + localhost proxy" 改为 Brainmaster 模式**
   - Python 通过 `subprocess.run(["claude", "--agent", ...])` 调用 Claude CLI
   - Agent 定义在 `.claude/agents/*.md`，输出走文件系统 JSON
@@ -35,14 +92,13 @@ Each Spec corresponds to a major milestone. Within a Spec, M0-M6 are intermediat
   - `.claude/agents/news-analyst.md` (sonnet, 30 turns) — 盘前新闻汇总 agent
   - `.claude/commands/test-premarket.md` — 手动测试盘前流程的 slash command
 
-### Pending — 接下来
-- Spec v2 用户审阅
-- `superpowers:writing-plans` 撰写实施计划
-- M0：项目骨架（uv 项目、CI、SQLite、健康检查、Streamlit Hello World）
-- M1：财联社单源端到端
-- M2：4 源 + 去重 + 规则分类
-- M3：`ClaudeAgentRunner` + news-analyst agent 端到端
-- M4：APScheduler + 盘前推送
-- M5：可观察性 + Streamlit UI
-- M6：集成测试 + 文档 + 试运行
+---
 
+## 历史里程碑（汇总）
+
+| 时间 | 关键事件 |
+|------|---------|
+| 2026-06-14 | Spec v1 设计完成 + GitHub repo 上线 |
+| 2026-06-14 | Spec v2 — 采纳 Brainmaster AI 集成模式 |
+| **2026-06-19** | **Spec v3 — 融合 Peersession PRD，升格小组联合项目** |
+| 待定 | Phase 1 M0 启动 |

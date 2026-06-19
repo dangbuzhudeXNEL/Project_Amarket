@@ -1,0 +1,60 @@
+# CODEOWNERS for Project_Amarket
+#
+# Each line is a file pattern followed by one or more owners.
+# Owners listed here are automatically requested for review when PRs touch matching files.
+#
+# Order matters: the LAST matching pattern wins.
+#
+# Reference: https://docs.github.com/en/repositories/managing-your-repositories-settings-and-features/customizing-your-repository/about-code-owners
+#
+# ============================================================
+# ⚠️ TODO: 占位符 @xxx_owner 在小组成员 GitHub 账号确认后替换为
+# 实际 username。例如 @alice / @bob / @charlie。
+# 当前默认所有路径 fallback 到项目负责人。
+# ============================================================
+
+# 全局 fallback
+* @dangbuzhudeXNEL
+
+# ---- 文档 ----
+/docs/                                 @dangbuzhudeXNEL
+/README.md                             @dangbuzhudeXNEL
+/CLAUDE.md                             @dangbuzhudeXNEL
+/CONTRIBUTING.md                       @dangbuzhudeXNEL
+/CHANGELOG.md                          @dangbuzhudeXNEL
+
+# ---- Spec ----
+/docs/superpowers/specs/               @dangbuzhudeXNEL
+/docs/peersession-source/              @dangbuzhudeXNEL
+
+# ---- 后端：核心模块（敏感，2 人 review）----
+/src/amarket/services/news/            @dangbuzhudeXNEL
+/src/amarket/services/dashboard/       @dangbuzhudeXNEL
+/src/amarket/services/params/          @dangbuzhudeXNEL
+/src/amarket/adapters/ai/              @dangbuzhudeXNEL
+/src/amarket/adapters/notifiers/       @dangbuzhudeXNEL
+/src/amarket/services/news/pusher.py   @dangbuzhudeXNEL
+
+# ---- 后端：行情数据 ----
+/src/amarket/adapters/market_sources/  @dangbuzhudeXNEL
+/src/amarket/services/dashboard/market_data.py @dangbuzhudeXNEL
+
+# ---- DB 迁移（敏感，2 人 review）----
+/src/amarket/db/migrations/            @dangbuzhudeXNEL
+
+# ---- 配置 + 部署 ----
+/config/                               @dangbuzhudeXNEL
+/.env.example                          @dangbuzhudeXNEL
+/start.bat                             @dangbuzhudeXNEL
+/start.sh                              @dangbuzhudeXNEL
+/scripts/watchdog/                     @dangbuzhudeXNEL
+
+# ---- CI / GitHub ----
+/.github/                              @dangbuzhudeXNEL
+
+# ---- 前端 POC + Streamlit ----
+/poc/                                  @dangbuzhudeXNEL
+/src/amarket/ui/                       @dangbuzhudeXNEL
+
+# ---- Claude Code agents (AI 工作负载) ----
+/.claude/                              @dangbuzhudeXNEL
