@@ -124,9 +124,7 @@ st.divider()
 
 # ----------------------- 📊 主要指数快照（M1） -----------------------
 st.subheader("📊 主要指数快照")
-st.caption(
-    "数据来源：akshare（A 股主要指数日线）。刷新数据：`uv run amarket collect market`"
-)
+st.caption("数据来源：akshare（A 股主要指数日线）。刷新数据：`uv run amarket collect market`")
 
 try:
     with httpx.Client(timeout=3.0) as client:
