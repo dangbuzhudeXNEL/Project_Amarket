@@ -1,190 +1,170 @@
 # Project State
 
-**Last Updated**: 2026-06-19 (Session 03 进行中)
-**Updated By**: Claude (opus-4.7) + User
-**Next Action Owner**: 👥 **小组**（审阅 Spec v3 + CONTRIBUTING + CODEOWNERS）
+**Last Updated**: 2026-06-19 (Session 04, M0 实施完成)
+**Updated By**: Claude (Opus 4.7, 1M ctx) + User
+**Next Action Owner**: 👤 **用户**（review feat/m0-project-skeleton 分支 → 决定 merge 方式）
 
 ---
 
 ## 🎯 下次 Session 必读：3 件事
 
-### 1. 当前阻塞在哪
-**小组（含用户）需要审阅 Spec v3 + 新增的小组协作工件**（CONTRIBUTING.md / CODEOWNERS / PR 模板）后才能进入实施计划（writing-plans）或直接进入 Phase 1 M0。
+### 1. 当前状态
+- ✅ **Phase 1 M0 实施完成**，在分支 `feat/m0-project-skeleton` 上
+- ✅ 42 unit tests passed
+- ✅ Coverage 91.59%（要求 70%）
+- ✅ Ruff / Mypy 全绿
+- ✅ Alembic baseline migration 跑通
+- ✅ FastAPI `/healthz` + `/metrics` 可用
+- ✅ Streamlit Hello World 可起
+- ✅ CLI `amarket healthcheck` 可用
 
-### 2. 用户/小组决策后的分叉
+### 2. 等待用户决定 merge 策略
 
-| 反馈 | 下次 session 第一动作 |
-|------|--------------------|
-| "spec v3 OK 且小组工件 OK，进入 Phase 1 M0 实施" | 用户先填 GitHub CODEOWNERS 真实账号 / 创建企微&飞书 webhook / 决定 LLM key 选型，然后启动 M0 任务 |
-| "spec v3 OK，先用 superpowers:writing-plans 出实施计划再 M0" | 调用 `superpowers:writing-plans` 把 Phase 1 M0-M6 拆成可执行的任务清单（每任务带验收 / 依赖 / 测试） |
-| "spec v3 要改 X 部分" | 创建 `docs/<member>-spec-update-v3.1` 分支 → PR 修订 → 至少产品 + 技术 2 人 review |
-| "先做其他事（如真实接 1 个新闻源做 spike）" | 按需进入 spike 工作（建议起 `spike/<topic>` 分支，写完后 review 经验再决定要不要纳入 spec） |
+**`feat/m0-project-skeleton` 分支**含 ~30 个新文件（pyproject + src/ + tests/ + CI + scripts），覆盖率 91.59% 已经过 CI 门槛。
 
-### 3. 严禁动作（在小组审阅前）
-- ❌ 直接开始写 src/ 代码（绕过 M0 + 实施计划）
-- ❌ 自行修改架构决策（任何变化要走 brainstorming/ADR 流程）
+| 选项 | 适用 | 操作 |
+|------|------|------|
+| **A. 自审 + push main**（当前推荐） | 暂无其他小组成员上线 review | `git checkout main && git merge feat/m0-project-skeleton --no-ff && git push origin main` |
+| **B. 开 PR + self-approve** | 想走 PR 流程留痕 | `gh pr create --base main --head feat/m0-project-skeleton`，自审后用 admin 权限合 |
+| **C. 等小组成员 review** | 其他成员近期能上线 | 把 branch push 远程，邀请成员到 GitHub repo 后 review 合 |
+
+无论哪种选项，下次 session 开始时分支已经存在，可以直接继续 M1（数据基座 + 1 源新闻 + 1 源行情）。
+
+### 3. 严禁动作
+- ❌ 在 main 上直接修改（必须经分支 + merge）
+- ❌ Force push main / feature branch
 - ❌ 跳过 Session 启动 Checklist
-- ❌ 引入任何形式的实盘下单代码（永远 ban）
+- ❌ 引入任何形式的实盘下单代码
 
 ---
 
 ## 当前阶段
 
-- **Spec**: #1 v3 — A 股实时新闻分析与行情看板（小组联合版，融合 Peersession PRD）
-- **Phase**: 🟡 **Spec v3 设计完成 + 小组协作工件就绪，等待小组审阅**
-- **Milestone**: 尚未开始 Phase 1 M0
-- **Sprint progress**: 0/6 Phase 1 milestones started（M0-M6）；0/3 Phase 2 milestones（M7-M9）
-- **Session count**: 3 sessions
+- **Spec**: #1 v3 — A 股实时新闻分析与行情看板（小组联合版）
+- **Phase**: 🟢 **Phase 1 实施中**
+- **Milestone**: **M0 ✅ 完成**（在分支 feat/m0-project-skeleton；待 merge main）
+- **Sprint progress**: 1/6 Phase 1 milestones started + completed（M0 done；M1 next）
+- **Session count**: 4 sessions
   - 2026-06-14 01: brainstorm + spec v1
-  - 2026-06-14 02: 架构调整为 Brainmaster 模式 → spec v2
-  - 2026-06-19 03: 融合 Peersession PRD → spec v3 + 小组协作工件（本次）
+  - 2026-06-14 02: Brainmaster 模式 → spec v2
+  - 2026-06-19 03: Peersession PRD merge → spec v3 + 小组协作工件
+  - **2026-06-19 04: M0 项目骨架实施（本次）**
 
 ---
 
-## 活跃任务
+## M0 实施总结
 
-| ID | 任务 | Owner | 状态 |
-|----|------|-------|------|
-| - | 审阅 Spec v3（重点：§4 用户与场景 / §6 模块设计 / §7 数据模型 / §17 里程碑 / 附录 C v2→v3 映射） | **小组** | ⏳ pending |
-| - | 审阅 CONTRIBUTING.md + CODEOWNERS + PR 模板 | **小组** | ⏳ pending |
-| - | 填实 CODEOWNERS 中的 GitHub 账号占位符 | **用户** | ⏳ pending |
-| - | 创建 GitHub 分支保护规则（main 需 PR + review） | **用户** | ⏳ pending |
-| - | 决定下一步：进 writing-plans 还是直接 M0 | **小组** | ⏳ pending |
-| - | 调用 superpowers:writing-plans 撰写 Phase 1 实施计划（spec 通过后） | claude | 📋 blocked |
+| 子阶段 | 交付 | 状态 |
+|--------|------|------|
+| M0-a | 项目骨架（pyproject.toml + src/amarket/ 完整包结构） | ✅ |
+| M0-b | 工具链（ruff lint+format + mypy strict + pytest + pre-commit + editorconfig） | ✅ |
+| M0-c | CI（.github/workflows/ci.yml — lint/typecheck/test，Python 3.11+3.12 矩阵） | ✅ |
+| M0-d | 配置 + 日志（config/app.yml + ConfigService + structlog JSON + 密钥脱敏 processor） | ✅ |
+| M0-e | 数据库（SQLite + Alembic baseline + users 表 migration） | ✅ |
+| M0-f | FastAPI（/healthz + /metrics + 启动钩子 + CORS） | ✅ |
+| M0-g | Streamlit Hello World（展示项目状态 + 调 /healthz） | ✅ |
+| M0-h | CLI（Typer：amarket version / healthcheck / healthcheck --json / db status） | ✅ |
+| M0-i | 启动脚本（start.bat + start.sh：一键 uv sync → alembic upgrade → FastAPI + Streamlit） | ✅ |
+| M0-j | Notifier 骨架（base.py + WeWorkBotNotifier + LarkBotNotifier，含合规 footer） | ✅ |
+| M0-k | smoke 测试 + conftest 基础设施（42 tests，conftest 含 in-memory engine / TestClient / env 隔离 fixtures） | ✅ |
 
----
-
-## 最近 6 个关键决策（按时间倒序）
-
-1. **2026-06-19 (本 session)**：**升格为小组联合项目** — 多人协作 + AI 协作伙伴 Claude；新增 CONTRIBUTING / CODEOWNERS / PR 模板；分支策略 + Code Review 流程上线
-2. **2026-06-19 (本 session)**：**Spec v3 融合 Peersession PRD** — 以 Peersession 为 Phase 1 主线（三大模块 / 6 时段日报 / P0-P3 告警 / 看板 API / 参数配置），原 v2 内容降级为 Phase 2（Brainmaster AI / 信号交易）
-3. **2026-06-19 (本 session)**：**永远不做实盘下单** — 显式禁令写入 spec / CLAUDE.md / CONTRIBUTING / README
-4. **2026-06-19 (本 session)**：**AI 集成双路径** — Phase 1 走 SDK（需要 API key）；Phase 2 走 Brainmaster（零 API key）
-5. **2026-06-14 (晚)**：采纳 Brainmaster 模式接入 AI（Phase 2 路径来源）
-6. **2026-06-14**：采用"知识沉淀机制"支持多 session 开发
-
-完整决策清单详见 spec v3 §3。
-
----
-
-## 阻塞 / 待用户/小组输入
-
-**硬阻塞**：小组审阅 Spec v3 + 小组协作工件
-
-**软阻塞**（不影响进入 writing-plans，M0 实施前确认即可）：
-- 填实 `.github/CODEOWNERS` 中的 GitHub 账号占位符
-- 业务推送 + 告警的企微 / 飞书 webhook（用户/小组创建后填 `.env`）
-- LLM API key 选型（Anthropic / DeepSeek 二选一或都配）
-- 静态 POC 框架选型（默认原生 + Tailwind CDN）
-- 代码许可证选择
-- 数据库种子数据是否调整
-- 验证 `claude --version` 在 Git Bash 中可调用（Phase 2 启动前）
+**关键约束坚持**：
+- ✅ 所有 public 函数 / 方法带 type hints
+- ✅ 日志全走 structlog（无 print / 标准库 logging）
+- ✅ 密钥走 .env，代码只用 env var 名
+- ✅ 配置走 YAML + pydantic-settings
+- ✅ 推送内容自动附加合规 footer（"📌 本信息仅供个人/小组学习参考，不构成任何投资建议"）
+- ✅ 无实盘下单代码
 
 ---
 
 ## 下一步路径
 
 ### 立即（下次 session 开头）
-1. 走 Session 启动 Checklist（CLAUDE.md 顶部）
-2. 询问小组：spec v3 审阅结论？小组协作工件 OK 吗？
-3. 根据反馈走相应分叉（见上面"下次 session 必读"）
+1. Session 启动 Checklist
+2. 询问用户 merge 方式（A/B/C），执行 merge
+3. 进入 M1（数据基座）
 
-### writing-plans 阶段（小组审阅通过后）
-4. 调用 `superpowers:writing-plans` 撰写 Phase 1 实施计划
-5. 实施计划按 M0-M6 拆解，每个任务有：
-   - 验收标准
-   - 依赖关系
-   - 预计工时
-   - 测试要求
-   - 责任人（owner）
-6. 小组审阅实施计划
-7. 进入 Phase 1 M0 实施
+### Phase 1 M1（数据基座）— 下次 session 主要工作
+- 完整 11+ 张表 SQLModel + Alembic migrations（news_items / news_events / news_analysis / market_snapshots / sector_trends / alerts / reports / push_records / source_health / params / param_versions / audit_events / config_versions / subscriptions / news_sources）
+- 1 源新闻 adapter（建议从同花顺或东方财富 7x24 开始）
+- 1 源行情 adapter（akshare 接上证指数）
+- NewsRepo + MarketSnapshotRepo
+- 最小 `/api/news` GET endpoint
+- 集成测试：抓取 → 入库 → 通过 API 查回
 
-### Phase 1 M0 启动 checklist（实施开始前）
-- [ ] 用户验证 `claude --version` 在 PATH 里能调（M0 可暂时不需，Phase 2 才需要）
-- [ ] 用户/小组创建 2 个企微机器人 + 1 个飞书机器人，把 webhook URL 写入 `.env`
-- [ ] 用户配置至少 1 个 LLM API key（Anthropic 主或 DeepSeek 备）
-- [ ] 选定代码许可证（或显式决定暂不加）
-- [ ] CODEOWNERS 填实 GitHub 账号
-- [ ] GitHub 分支保护规则配置好（main 需 PR + review）
+### Phase 1 M2-M6 概览
+- M2：新闻去重 + 分类 + 评分；P0-P3 告警决策
+- M3：完整看板 API + 静态 HTML POC
+- M4：6 时段日报 + 完整推送（企微 + 飞书 + 邮件）
+- M5：参数配置模块（版本 / 回滚 / 权限矩阵 / 审计）
+- M6：集成测试 + UML + 文档 + 试运行
 
 ---
 
-## 重要环境/配置变化（按时间正序）
+## 阻塞 / 待用户/小组输入
+
+**软阻塞**（M1 启动前确认即可）：
+- 填实 `.github/CODEOWNERS` 中的 GitHub 账号占位符
+- GitHub 分支保护规则配置（main 受保护、需 PR + review）
+- 选择 1 个新闻源做 M1 spike（同花顺 / 东方财富 / 雅虎财经）
+- 配置至少 1 个 LLM API key（M2 AI 分析模块用）
+- 创建 1 个企微机器人 webhook（M1 末验证 hello 推送）
+
+**无硬阻塞** — 可以直接继续 M1。
+
+---
+
+## 当前 git 状态
+
+- **分支**：`feat/m0-project-skeleton`（在分支上，未推远程）
+- **main 上一次 commit**：`f41589f arch(spec1): merge peersession PRD into spec v3 + upgrade to team repo`
+- **本分支累计**：M0 实施一次 commit（即将创建）
+
+---
+
+## 重要环境/配置变化（新增本次）
 
 | 时间 | 变化 |
 |------|------|
-| 2026-06-14 上午 | 项目初始化：git init main / .gitignore / spec v1 写入 |
-| 2026-06-14 上午 | PAT.txt 加入 .gitignore 保护 |
-| 2026-06-14 上午 | spec v1 自审修订 |
-| 2026-06-14 下午 | spec v1 新增 §16 多 Session 开发支持 |
-| 2026-06-14 下午 | 知识沉淀工件 v1（CLAUDE.md / PROJECT_STATE.md / CHANGELOG.md / sessions/） |
-| 2026-06-14 下午 | GitHub repo 创建 + 首推 |
-| 2026-06-14 晚上 | **架构调整：采纳 Brainmaster 模式** → spec v2；新建 `.claude/agents/news-analyst.md` 和 `.claude/commands/test-premarket.md` |
-| 2026-06-14 晚上 | `.gitignore` 修复 `*PAT*` 过宽 bug |
-| **2026-06-19** | **Spec v3 融合 Peersession PRD**：写入 `docs/superpowers/specs/2026-06-19-spec1-v3-merged.md`（2391 行） |
-| **2026-06-19** | **归档 Peersession 原始素材**：移至 `docs/peersession-source/` |
-| **2026-06-19** | **小组协作工件**：新增 `CONTRIBUTING.md` / `.github/CODEOWNERS` / `.github/PULL_REQUEST_TEMPLATE.md` |
-| **2026-06-19** | **CLAUDE.md / README.md** 更新反映 Phase 1/2 双阶段 + 小组联合定位 |
+| **2026-06-19 (session 04)** | uv 项目初始化，pin Python 3.12（Python 3.14 上 lxml 无 wheel 需编译） |
+| 2026-06-19 (session 04) | 安装 ~80 个生产依赖 + 15 个 dev 依赖 |
+| 2026-06-19 (session 04) | SQLite DB 文件首次生成于 `data/amarket.db` |
+| 2026-06-19 (session 04) | `.python-version` 入库（之前被 .gitignore 屏蔽，已修正） |
 
 ---
 
-## 文档地图
+## 文档地图（增量）
 
-| 文档 | 用途 |
-|------|------|
-| `CLAUDE.md` | 项目根入口，新 session 必读第一文件（已更新为 v3 + 小组联合） |
-| `docs/PROJECT_STATE.md` | 本文件，项目"现在到哪了" |
-| `docs/sessions/*.md` | 每次开发 session 的日志（已有 3 篇） |
-| `docs/superpowers/specs/2026-06-19-spec1-v3-merged.md` | **当前 Spec v3** |
-| `docs/superpowers/specs/2026-06-14-news-engine-design.md` | 上一版 Spec v2（历史） |
-| `docs/peersession-source/` | Peersession 原始素材（小组成员 PRD + Timeline） |
-| `docs/superpowers/plans/` | 实施计划（writing-plans 阶段后会有） |
-| `docs/adr/` | 架构决策记录（按需创建，目前空） |
-| `CHANGELOG.md` | 用户视角的"做了什么" |
-| `CONTRIBUTING.md` | **小组协作规范**（分支 / PR / review / 编码标准） |
-| `.github/CODEOWNERS` | 模块 owner（含占位符待填） |
-| `.github/PULL_REQUEST_TEMPLATE.md` | PR 描述模板 |
-| `.claude/agents/news-analyst.md` | Phase 2 Brainmaster：盘前新闻汇总 agent |
-| `.claude/commands/test-premarket.md` | 用户可手动调的 slash command |
-| `README.md` | 项目概览（GitHub 首页，已更新为小组联合） |
-| `PAT.txt` | GitHub PAT，已 gitignore（**永不入库**） |
+新增 / 变化：
+
+| 文档 / 文件 | 用途 |
+|------------|------|
+| `pyproject.toml` | uv 项目元数据 + 依赖 + 工具配置（ruff/mypy/pytest/coverage） |
+| `.python-version` | 项目 Python 版本锁（3.12） |
+| `uv.lock` | uv 依赖锁文件 |
+| `alembic.ini` | Alembic 配置（动态注入 database_url） |
+| `.pre-commit-config.yaml` | pre-commit 钩子（ruff + mypy + 通用） |
+| `.editorconfig` | 跨编辑器格式统一 |
+| `.github/workflows/ci.yml` | GitHub Actions CI（lint / mypy / test 3.11+3.12 矩阵） |
+| `config/app.yml` | 应用全局 YAML 配置 |
+| `.env.example` | 环境变量模板 |
+| `start.bat` / `start.sh` | 一键启动脚本 |
+| `src/amarket/**` | 应用源码（main.py / cli.py / ui/app.py / api/* / services/* / adapters/notifiers/* / domain/* / core/* / db/*） |
+| `tests/**` | 测试套件（conftest + 9 个测试文件，42 tests） |
 
 ---
 
-## 速查表
+## 速查表（更新）
 
-- **当前 spec**：`docs/superpowers/specs/2026-06-19-spec1-v3-merged.md` (v3, 2391 行)
-- **当前 phase**：Phase 1（即将启动 M0）
-- **当前 agent**（Phase 2 用）：`.claude/agents/news-analyst.md`
-- **GitHub**：https://github.com/dangbuzhudeXNEL/Project_Amarket (PUBLIC)
-- **本地路径**：`C:\AI\Claude\Project_Amarket`
-- **PAT 位置（不入 git）**：`PAT.txt`
-- **参考项目**：`C:\AI\Claude\Brainmaster`（同款 Brainmaster AI 集成模式）
-- **本次 session commit**：（即将创建）
-
----
-
-## 当下 Session 总结（2026-06-19, Session 03）
-
-**输入**：用户告知 `Peersession/` 是小组成员做的，需要 merge 进当前项目，**以 Peersession 大纲为主**；同时告知"superpowers 不必每次都用，简单规划用原生工具"。
-
-**产出**：
-- 1 份完整 Spec v3 (2391 行)，融合 Peersession PRD + 原 v2 工程化内容
-- 双 Phase 划分：Phase 1 = 三大模块（新闻 / 看板 / 参数配置）+ 6 时段日报 + P0-P3 告警 + 看板 API + 看板 POC；Phase 2 = 原 v2 内容（Brainmaster AI / 信号交易）
-- 小组协作三件套：`CONTRIBUTING.md` / `.github/CODEOWNERS` / `.github/PULL_REQUEST_TEMPLATE.md`
-- Peersession 原始素材归档到 `docs/peersession-source/`
-- 更新 CLAUDE.md（项目身份卡 / 编码规范 / YAGNI / 协作模式 / 文档地图 / 链接）
-- 更新 README.md（Phase 1/2 + 小组联合）
-- 更新 CHANGELOG.md（即将做）
-- 更新 PROJECT_STATE.md（本文件）
-
-**关键决策**：
-- 项目升格为小组联合项目
-- 以 Peersession PRD 为 Phase 1 主线
-- v2 内容降级为 Phase 2
-- 不赶 Peersession Timeline 的 6.27 截止
-- 永远不做实盘下单（显式禁令）
-- Phase 1 AI 走 SDK；Phase 2 走 Brainmaster
-
-**下次接力点**：小组审阅 Spec v3 + 小组协作工件 → 进入 writing-plans 或直接 Phase 1 M0。
+- **当前 spec**：`docs/superpowers/specs/2026-06-19-spec1-v3-merged.md` (v3)
+- **当前 phase**：Phase 1 M0 ✅
+- **当前 branch**：`feat/m0-project-skeleton`
+- **首选 Python**：3.12
+- **测试**：`uv run pytest -x` （42 tests，~1s）
+- **覆盖率**：`uv run pytest --cov=src/amarket --cov-report=term-missing` （91.59%）
+- **Lint**：`uv run ruff check .` + `uv run ruff format --check .`
+- **类型**：`uv run mypy src/`
+- **启动**：`./start.bat` / `./start.sh` → http://127.0.0.1:8080/docs + http://127.0.0.1:8501
+- **健康检查**：`uv run amarket healthcheck` 或 `curl http://127.0.0.1:8080/healthz`
+- **DB migration**：`uv run alembic upgrade head`

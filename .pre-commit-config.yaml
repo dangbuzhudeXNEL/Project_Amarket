@@ -1,0 +1,43 @@
+repos:
+  # Ruff: lint + format
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.6
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  # Mypy: type check（只跑变更文件，CI 跑全量）
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.13.0
+    hooks:
+      - id: mypy
+        files: ^src/amarket/
+        additional_dependencies:
+          - pydantic>=2.9
+          - pydantic-settings>=2.6
+          - sqlmodel>=0.0.22
+          - types-pyyaml
+          - structlog
+          - fastapi
+          - httpx
+          - prometheus-client
+        args: [--config-file=pyproject.toml]
+
+  # 通用钩子
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^docs/peersession-source/
+      - id: end-of-file-fixer
+        exclude: ^docs/peersession-source/
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: detect-private-key
+      - id: mixed-line-ending
+        args: [--fix=lf]
+        exclude: '\.(bat|ps1)$'  # Windows 脚本保留 CRLF
