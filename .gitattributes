@@ -1,0 +1,43 @@
+# 强制行尾规范化 — 避免 Windows/Linux ruff format 行长度计算不一致导致 CI 抖动
+# Spec: 所有源码 + 配置 + 文档统一 LF；Windows 批处理脚本保持 CRLF
+
+# Auto-detect text files
+* text=auto eol=lf
+
+# Source code (always LF)
+*.py text eol=lf
+*.ipynb text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+*.json text eol=lf
+*.ini text eol=lf
+*.cfg text eol=lf
+*.txt text eol=lf
+*.sh text eol=lf
+*.sql text eol=lf
+
+# Windows scripts MUST use CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Lock files (don't touch)
+uv.lock text eol=lf -diff
+*.lock text eol=lf -diff
+
+# Binary - don't touch
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.gz binary
+*.tar binary
+*.db binary
+*.sqlite binary
+*.sqlite3 binary
+*.docx binary
