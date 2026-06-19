@@ -86,6 +86,22 @@ Each Spec corresponds to a major milestone. Within a Spec, M0-M9 are intermediat
 - 用户决定 `feat/m0-project-skeleton` 分支 merge 策略（自审 push / open PR / 等小组 review）
 - Phase 1 M1：数据基座（11+ 张完整表 schema + 1 源新闻 + 1 源行情 + NewsRepo + 最小 /api/news）
 
+### Added — M0+ 通知预留端到端（2026-06-19, Session 04 续）
+
+**目标**：让企微 / 飞书通知"配好 webhook 就能立刻验证"，不必等 M4 真实推送。
+
+- **`/healthz`**：新增 `notifiers: dict[str, NotifierHealth]` 字段（每个已配置的渠道暴露 ok/down/disabled 状态 + 上次错误）；notifier `down` 不致命但触发 overall `degraded`
+- **`ObservabilityService`**：新增 `iter_notifiers()` / `get_notifier(channel)` / `list_notifier_channels()` — 单一入口枚举所有已配置 notifier
+- **`services/notify_test.py`**：同步包装（asyncio.run）— 给 Streamlit / CLI 共用
+- **Streamlit dashboard**：新增"📬 通知测试"区域，企微业务 / 企微告警 / 飞书三栏并排显示配置状态 + 一键"🧪 发测试"按钮
+- **CLI**：
+  - `amarket notify status` — 列出渠道配置 + 健康
+  - `amarket notify test <channel>` — 发测试消息（`channel ∈ wework|wework_alert|lark|all`）
+  - `amarket healthcheck` 输出增加 `notifiers:` 段
+- **测试**：新增 14 个 test 覆盖（observability notifier 路径 + notify_test wrapper + CLI notify 命令）
+- **总计**：**56 tests passed (从 42)**，覆盖率 **91.10%**
+- 同步小修：`dict()` 替代 dict comprehension（ruff C416）
+
 ### Changed — Spec v3: 升格小组联合项目 + 融合 Peersession PRD（2026-06-19）
 
 **重大方向转变**：项目从"个人自用 + 学习"升格为**小组联合项目**。

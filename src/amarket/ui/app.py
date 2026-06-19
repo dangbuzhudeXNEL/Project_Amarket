@@ -1,4 +1,4 @@
-"""Streamlit 管理面板入口（M0 占位 Hello World）。
+"""Streamlit 管理面板入口（M0 占位 Hello World + 通知测试）。
 
 启动：
     uv run streamlit run src/amarket/ui/app.py --server.port 8501
@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -17,11 +18,15 @@ import streamlit as st
 
 from amarket import __version__
 from amarket.services.config_service import get_app_config
+from amarket.services.notify_test import send_test_message_sync
+from amarket.services.observability import iter_notifiers, list_notifier_channels
 
 cfg = get_app_config()
 
 st.set_page_config(
-    page_title=f"Project_Amarket — {cfg.project_meta.current_phase} {cfg.project_meta.current_milestone}",
+    page_title=(
+        f"Project_Amarket — {cfg.project_meta.current_phase} {cfg.project_meta.current_milestone}"
+    ),
     page_icon="📈",
     layout="wide",
 )
@@ -44,8 +49,10 @@ st.subheader("🩺 后端健康")
 api_url = f"http://{cfg.api.host}:{cfg.api.port}/healthz"
 st.caption(f"目标：`{api_url}`")
 
-if st.button("🔄 刷新", type="primary"):
-    st.rerun()
+refresh_col, _ = st.columns([1, 5])
+with refresh_col:
+    if st.button("🔄 刷新", type="primary", key="refresh_health"):
+        st.rerun()
 
 try:
     with httpx.Client(timeout=3.0) as client:
@@ -56,7 +63,7 @@ try:
     if status == "healthy":
         st.success(f"✅ FastAPI 健康（HTTP {resp.status_code}）")
     elif status == "degraded":
-        st.warning(f"⚠️ FastAPI 降级（HTTP {resp.status_code}）")
+        st.warning(f"⚠️ FastAPI 降级（HTTP {resp.status_code}）— 可能是 notifier 未配置或失败")
     else:
         st.error(f"❌ FastAPI 不健康（HTTP {resp.status_code}）")
 
@@ -71,6 +78,50 @@ except httpx.RequestError as exc:
 
 st.divider()
 
+# ----------------------- 📬 通知测试 -----------------------
+st.subheader("📬 通知测试")
+st.caption(
+    "配置 `.env` 中的 `WEWORK_BOT_WEBHOOK_URL` / `WEWORK_ALERT_BOT_WEBHOOK_URL` / "
+    "`LARK_BOT_WEBHOOK_URL` 后，可一键发送测试消息验证通路。"
+)
+
+configured = dict(iter_notifiers())
+all_channels = list_notifier_channels()
+
+channel_descs = {
+    "wework": ("企业微信（业务推送）", "WEWORK_BOT_WEBHOOK_URL"),
+    "wework_alert": ("企业微信（告警专用）", "WEWORK_ALERT_BOT_WEBHOOK_URL"),
+    "lark": ("飞书机器人", "LARK_BOT_WEBHOOK_URL"),
+}
+
+n_cols = st.columns(len(all_channels))
+for idx, channel in enumerate(all_channels):
+    desc, env_var = channel_descs[channel]
+    with n_cols[idx]:
+        st.markdown(f"**{desc}**")
+        if channel in configured:
+            health = configured[channel].health_check()
+            icon = {"ok": "🟢", "degraded": "🟡", "down": "🔴", "disabled": "⚪"}.get(
+                health.status, "❓"
+            )
+            st.markdown(f"{icon} `{health.status}`")
+            if health.last_error:
+                st.caption(f"上次错误：{health.last_error[:60]}")
+            if st.button("🧪 发测试", key=f"test_{channel}"):
+                with st.spinner(f"正在发送到 {desc}..."):
+                    result = send_test_message_sync(channel)
+                if result.ok:
+                    st.success(f"✅ 已发送 @ {result.sent_at.strftime('%H:%M:%S UTC')}")
+                else:
+                    st.error(f"❌ {result.error}")
+        else:
+            st.markdown("⚪ `未配置`")
+            st.caption(f"在 `.env` 设置 `{env_var}` 后重启 server 即可启用")
+
+st.caption("📌 测试消息会自动附加合规声明（_本信息仅供个人/小组学习参考，不构成任何投资建议_）")
+
+st.divider()
+
 # ----------------------- 当前 Milestone 进度 -----------------------
 st.subheader("🎯 当前 Milestone")
 
@@ -82,10 +133,11 @@ m0_tasks = [
     ("M0-e", "数据库（SQLite + Alembic baseline）", True),
     ("M0-f", "FastAPI 入口（/healthz + /metrics）", True),
     ("M0-g", "Streamlit Hello World（本页面）", True),
-    ("M0-h", "CLI 骨架（amarket healthcheck）", False),
-    ("M0-i", "启动脚本（start.bat / start.sh）", False),
-    ("M0-j", "Notifier 接口骨架（企微 + 飞书）", False),
-    ("M0-k", "smoke 测试 + conftest", False),
+    ("M0-h", "CLI 骨架（amarket healthcheck）", True),
+    ("M0-i", "启动脚本（start.bat / start.sh）", True),
+    ("M0-j", "Notifier 接口骨架（企微 + 飞书）", True),
+    ("M0-k", "smoke 测试 + conftest", True),
+    ("M0+", "通知预留：healthz 子检查 + Streamlit 测试 + CLI notify", True),
 ]
 
 done = sum(1 for *_, completed in m0_tasks if completed)
@@ -109,4 +161,7 @@ st.markdown(
 """
 )
 
-st.caption("📌 本系统仅用于个人 / 小组学习参考，不构成任何投资建议；**永远不做实盘下单**。")
+st.caption(
+    f"⏱️ 本页面渲染时间：{datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}　|　"
+    "📌 本系统仅用于个人 / 小组学习参考，不构成任何投资建议；**永远不做实盘下单**。"
+)

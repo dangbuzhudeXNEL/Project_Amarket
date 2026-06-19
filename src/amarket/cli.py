@@ -19,7 +19,12 @@ import typer
 
 from amarket import __version__
 from amarket.services.config_service import get_app_config
-from amarket.services.observability import get_health_report
+from amarket.services.notify_test import send_test_message_sync
+from amarket.services.observability import (
+    get_health_report,
+    iter_notifiers,
+    list_notifier_channels,
+)
 
 app = typer.Typer(
     name="amarket",
@@ -30,6 +35,9 @@ app = typer.Typer(
 
 db_app = typer.Typer(help="数据库管理子命令。")
 app.add_typer(db_app, name="db")
+
+notify_app = typer.Typer(help="通知渠道管理 / 测试。")
+app.add_typer(notify_app, name="notify")
 
 
 # --------------------------------------------------------------------------- #
@@ -128,6 +136,18 @@ def _pretty_print_health(payload: dict[str, object]) -> None:
             extra_str = (" — " + " | ".join(extras)) if extras else ""
             typer.echo(f"    {sub_icon} {name}: {sub_status}{extra_str}")
 
+    notifiers = payload.get("notifiers") or {}
+    if isinstance(notifiers, dict) and notifiers:
+        typer.echo("  notifiers:")
+        for name, info in notifiers.items():
+            if not isinstance(info, dict):
+                continue
+            sub_status = str(info.get("status", "?"))
+            sub_icon = {"ok": "🟢", "degraded": "🟡", "down": "🔴", "disabled": "⚪"}.get(
+                sub_status, "❓"
+            )
+            typer.echo(f"    {sub_icon} {name}: {sub_status}")
+
 
 # --------------------------------------------------------------------------- #
 # db status
@@ -154,6 +174,61 @@ def db_status() -> None:
         typer.echo(f"  latency: {db_check.latency_ms}ms")
     if db_check.detail:
         typer.echo(f"  detail : {db_check.detail}")
+
+
+# --------------------------------------------------------------------------- #
+# notify status / test
+# --------------------------------------------------------------------------- #
+
+
+@notify_app.command("status")
+def notify_status() -> None:
+    """列出所有通知渠道及配置状态。"""
+    configured = dict(iter_notifiers())
+    all_channels = list_notifier_channels()
+    if not all_channels:
+        typer.secho("（无已知 channel）", fg=typer.colors.YELLOW)
+        raise typer.Exit(code=0)
+
+    for channel in all_channels:
+        if channel in configured:
+            h = configured[channel].health_check()
+            icon = {"ok": "🟢", "degraded": "🟡", "down": "🔴", "disabled": "⚪"}.get(
+                h.status, "❓"
+            )
+            extra = f" — last_error: {h.last_error}" if h.last_error else ""
+            typer.echo(f"{icon} {channel}: {h.status} (configured){extra}")
+        else:
+            typer.echo(f"⚪ {channel}: not configured")
+
+
+@notify_app.command("test")
+def notify_test(
+    channel: str = typer.Argument(
+        ...,
+        help="渠道：wework | wework_alert | lark | all",
+    ),
+) -> None:
+    """发送一条测试消息验证 webhook 配置。
+
+    示例:
+        amarket notify test wework
+        amarket notify test all
+    """
+    targets: list[str] = list_notifier_channels() if channel == "all" else [channel]
+
+    exit_code = 0
+    for target in targets:
+        typer.echo(f"→ 发送测试到 {target}...")
+        result = send_test_message_sync(target)
+        if result.ok:
+            ts = result.sent_at.strftime("%H:%M:%S UTC")
+            typer.secho(f"  ✅ {target}: ok @ {ts}", fg=typer.colors.GREEN)
+        else:
+            typer.secho(f"  ❌ {target}: {result.error}", fg=typer.colors.RED)
+            exit_code = 1
+
+    raise typer.Exit(code=exit_code)
 
 
 def main() -> None:
