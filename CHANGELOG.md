@@ -11,6 +11,81 @@ Each Spec corresponds to a major milestone. Within a Spec, M0-M9 are intermediat
 
 ## [Unreleased] — Spec #1 v3 进行中
 
+### Added — Phase 1 M0 实施完成（2026-06-19, Session 04, branch `feat/m0-project-skeleton`）
+
+**Phase 1 M0：项目骨架 + 小组仓库基础设施** ✅
+
+- **uv 项目初始化**：`pyproject.toml` (Python 3.11+，pin 3.12)、`uv.lock`、`.python-version`
+  - 生产依赖：fastapi/uvicorn/streamlit/sqlmodel/alembic/apscheduler/httpx/structlog/loguru/typer/pydantic+settings/jinja2/chinese-calendar/simhash/prometheus-client/tenacity/pyyaml/python-dotenv/lxml/beautifulsoup4/feedparser/anthropic/openai
+  - 可选依赖：market-data extra（akshare/efinance/yfinance）
+  - 开发依赖：pytest+asyncio+cov+mock/httpx/respx/freezegun/ruff/mypy/pre-commit/types-pyyaml
+
+- **工具链**：
+  - `ruff` (lint + format)：开启 E/W/F/I/B/C4/UP/ARG/SIM/RUF，ignore 中文标点 RUF001-003
+  - `mypy` (strict 模式，Python 3.11+ target)
+  - `pytest` + `pytest-asyncio` + `pytest-cov`（覆盖率门槛 70%）
+  - `pre-commit` (ruff + mypy + 通用钩子)
+  - `.editorconfig`
+
+- **CI**（`.github/workflows/ci.yml`）：
+  - lint job（ruff check + format check）
+  - typecheck job（mypy src/）
+  - test job（matrix Python 3.11 + 3.12）
+  - docs-check job（必需文档存在性 + CODEOWNERS TODO 警告）
+
+- **数据库**：
+  - `alembic.ini` + `src/amarket/db/migrations/env.py`（动态注入 database_url）
+  - 第一个 migration：`20260619_m0_users.py`（创建 users 表）
+  - `src/amarket/db/session.py`（engine + session factory + FastAPI 依赖）
+
+- **配置 + 日志**：
+  - `config/app.yml`（应用全局 + API + UI + project_meta）
+  - `.env.example`（Phase 1+2 全部 env var 模板）
+  - `src/amarket/services/config_service.py`（pydantic-settings，含 lru_cache + reload_config）
+  - `src/amarket/core/logging.py`（structlog JSON / Console + 密钥脱敏 processor）
+  - `src/amarket/core/exceptions.py`（AmarketError + 子类）
+
+- **HTTP API**（FastAPI）：
+  - `src/amarket/main.py`（app 工厂 + lifespan 钩子 + CORS）
+  - `src/amarket/api/health.py`（`/healthz` — healthy/degraded → 200，unhealthy → 503）
+  - `src/amarket/api/metrics.py`（`/metrics` — Prometheus 格式 + amarket_uptime_seconds + amarket_app info）
+  - `src/amarket/services/observability.py`（DB 探活 + aggregate 总状态）
+
+- **UI**：
+  - `src/amarket/ui/app.py`（Streamlit Hello — 状态卡 + /healthz 调用 + M0 进度 + 文档导航）
+
+- **CLI**（Typer）：
+  - `amarket version` — 版本 + Spec/Phase/Milestone
+  - `amarket healthcheck` / `--json` / `--remote` — 进程内或远端健康检查
+  - `amarket db status` — DB 探活
+
+- **启动脚本**：
+  - `start.bat`（Windows，新窗口分别拉起 FastAPI + Streamlit）
+  - `start.sh`（Linux/macOS，trap INT/TERM 一键启停）
+
+- **Notifier 骨架**（Spec v3 §6.2.4）：
+  - `src/amarket/adapters/notifiers/base.py`（Notifier Protocol + NotificationResult + NotifierHealth + CardSpec + **COMPLIANCE_FOOTER 全外发消息合规附加**）
+  - `src/amarket/adapters/notifiers/wework_bot.py`（企微：text/markdown/news，含 errcode 处理）
+  - `src/amarket/adapters/notifiers/lark_bot.py`（飞书：text/post/interactive 卡片）
+
+- **Domain 层**：
+  - `src/amarket/domain/enums.py`（UserRole/SourcePriority/NewsCategory/Sentiment/ImpactHorizon/ActionHint/AlertLevel/PushStatus/PushKind/ReportKind/SourceHealthStatus/ProcessingProvider — Spec v3 §8）
+  - `src/amarket/domain/models.py`（User SQLModel，TimestampMixin）
+
+- **测试**：
+  - `tests/conftest.py`（公共 fixtures：in_memory_engine / session / patched_engine / api_client / clean_env / log 静默）
+  - 9 个测试文件：config_service / logging_redaction / observability / api_endpoints / notifiers (wework+lark) / cli / models / enums
+  - **42 unit tests passed in 1.23s**
+  - **Coverage: 91.59%**（要求 70%）
+
+- **小修**：
+  - `.gitignore` 把 `.python-version` 从忽略列表移出（uv 项目标准做法）
+
+### Pending — 接下来
+
+- 用户决定 `feat/m0-project-skeleton` 分支 merge 策略（自审 push / open PR / 等小组 review）
+- Phase 1 M1：数据基座（11+ 张完整表 schema + 1 源新闻 + 1 源行情 + NewsRepo + 最小 /api/news）
+
 ### Changed — Spec v3: 升格小组联合项目 + 融合 Peersession PRD（2026-06-19）
 
 **重大方向转变**：项目从"个人自用 + 学习"升格为**小组联合项目**。
