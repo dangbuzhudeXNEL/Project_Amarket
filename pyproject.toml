@@ -198,6 +198,8 @@ filterwarnings = [
     "ignore::ResourceWarning",
     # Starlette / FastAPI 推荐 httpx2，仍保留 httpx 即可
     "ignore::starlette.exceptions.StarletteDeprecationWarning",
+    # simhash 库 docstring 中有非 raw 的 \w，Py3.12 emit SyntaxWarning（已上报上游）
+    "ignore::SyntaxWarning",
 ]
 
 # ============================================================

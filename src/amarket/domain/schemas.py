@@ -88,6 +88,35 @@ class NewsListResponse(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
+# Alert DTOs（M2-h）
+# --------------------------------------------------------------------------- #
+
+
+class AlertDTO(BaseModel):
+    """`GET /api/alerts` 单条 DTO。"""
+
+    alert_id: int
+    news_id: int | None
+    level: str  # 'P0' / 'P1' / 'P2'
+    trigger_reason: str
+    analysis_id: int | None = None
+    status: str  # 'pending' / 'pushed' / 'dismissed'
+    created_at: datetime
+    pushed_at: datetime | None = None
+    # 便利字段（join news 拿）
+    news_title: str | None = None
+    news_source: str | None = None
+    primary_category: str | None = None
+
+
+class AlertListResponse(BaseModel):
+    items: list[AlertDTO]
+    total: int
+    offset: int
+    limit: int
+
+
+# --------------------------------------------------------------------------- #
 # Source DTOs
 # --------------------------------------------------------------------------- #
 
@@ -106,6 +135,8 @@ class NewsSourceDTO(BaseModel):
 
 
 __all__ = [
+    "AlertDTO",
+    "AlertListResponse",
     "IndexSnapshot",
     "MarketStatusBar",
     "NewsCardDTO",

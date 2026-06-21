@@ -58,6 +58,12 @@ app.add_typer(notify_app, name="notify")
 collect_app = typer.Typer(help="数据采集 — 触发新闻 / 行情入库。")
 app.add_typer(collect_app, name="collect")
 
+dedupe_app = typer.Typer(help="新闻去重 — L1 URL / L2 标题 / L3 SimHash 三层 + 事件聚合。")
+app.add_typer(dedupe_app, name="dedupe")
+
+analyze_app = typer.Typer(help="新闻智能分析 — 分类 + 评分 + AI / 规则双路径。")
+app.add_typer(analyze_app, name="analyze")
+
 
 # --------------------------------------------------------------------------- #
 # version
@@ -329,6 +335,136 @@ def collect_market() -> None:
         typer.echo(f"  {s.code:10s} {s.name:8s} {s.price:>10.2f}  {change}")
 
     typer.secho(f"\n✅ 入库 {inserted} 条快照", fg=typer.colors.GREEN)
+
+
+# --------------------------------------------------------------------------- #
+# dedupe news（M2-b）
+# --------------------------------------------------------------------------- #
+
+
+@dedupe_app.command("news")
+def dedupe_news(
+    limit: int = typer.Option(500, "--limit", help="处理最近多少条未去重的新闻"),
+    lookback_hours: int = typer.Option(
+        24, "--lookback-hours", help="L2/L3 候选事件回看窗口（小时）"
+    ),
+    threshold: int = typer.Option(3, "--threshold", help="SimHash 距离阈值"),
+) -> None:
+    """对 news_items.event_id IS NULL 的条目跑 3 层去重 + 写 news_events。
+
+    示例:
+        amarket dedupe news                          # 默认 500 条 / 24h / 阈值 3
+        amarket dedupe news --limit 1000             # 处理更多
+        amarket dedupe news --threshold 8            # 放宽 L3（更激进合并）
+    """
+    from amarket.repositories.news_repo import NewsRepo
+    from amarket.services.news.deduper import NewsDeduper
+
+    with session_scope() as session:
+        news_repo = NewsRepo(session)
+        candidates = news_repo.list_without_event(limit=limit)
+        if not candidates:
+            typer.secho(
+                "✅ 没有待去重的新闻（所有 news_items.event_id 已分配）", fg=typer.colors.GREEN
+            )
+            raise typer.Exit(code=0)
+
+        typer.echo(
+            f"→ 找到 {len(candidates)} 条待去重新闻，"
+            f"threshold={threshold} lookback={lookback_hours}h"
+        )
+
+        deduper = NewsDeduper(
+            session,
+            simhash_threshold=threshold,
+            lookback_hours=lookback_hours,
+        )
+        result = deduper.dedupe_batch(candidates)
+
+    typer.echo("")
+    typer.secho("去重完成：", fg=typer.colors.GREEN)
+    typer.echo(f"  total                 : {result.total}")
+    typer.echo(f"  new events            : {result.new_events}")
+    typer.echo(f"  merged into existing  : {result.merged_into_existing}")
+    typer.echo(f"  skipped (already set) : {result.skipped_already_event}")
+    typer.echo(f"  events touched        : {len(result.events_touched)}")
+    if result.total > 0:
+        ratio = (result.new_events + result.merged_into_existing) / result.total
+        typer.echo(f"  processing ratio      : {ratio:.1%}")
+
+
+# --------------------------------------------------------------------------- #
+# analyze news（M2-e）
+# --------------------------------------------------------------------------- #
+
+
+@analyze_app.command("news")
+def analyze_news(
+    limit: int = typer.Option(50, "--limit", help="处理多少条最近未分析的新闻"),
+    use_ai: bool = typer.Option(True, "--ai/--no-ai", help="是否启用 AI（关闭则只走规则路径）"),
+    concurrency: int = typer.Option(5, "--concurrency", help="AI 并发数"),
+    reanalyze: bool = typer.Option(False, "--reanalyze", help="不跳过已分析的（默认跳过）"),
+    with_alerts: bool = typer.Option(
+        True, "--alerts/--no-alerts", help="分析完后自动走 AlertService 决策 P0-P3"
+    ),
+) -> None:
+    """跑 NewsAnalysisService 编排：Classifier → AI (FallbackChain) → Scorer 兜底 → 写 news_analysis。
+
+    `--alerts`（默认开）：分析完后自动跑 AlertService 决策 P0-P3 + 写 alerts 表。
+
+    示例:
+        amarket analyze news                       # 默认 50 条 + AI + alerts
+        amarket analyze news --no-ai               # 只走规则路径（无 API key 时用）
+        amarket analyze news --limit 500 --reanalyze --no-alerts
+    """
+    from amarket.repositories.news_repo import NewsRepo
+    from amarket.services.news.alert import AlertService
+    from amarket.services.news.analysis import NewsAnalysisService
+
+    with session_scope() as session:
+        # 找最近的新闻（不论是否已分析）
+        news_repo = NewsRepo(session)
+        candidates = news_repo.list_recent(limit=limit)
+        items = [tup[0] for tup in candidates]
+        if not items:
+            typer.secho("❌ 数据库里没有新闻可分析。先跑 collect news", fg=typer.colors.YELLOW)
+            raise typer.Exit(code=1)
+
+        typer.echo(
+            f"→ 取 {len(items)} 条新闻 | AI={'on' if use_ai else 'off'} "
+            f"| concurrency={concurrency} | reanalyze={reanalyze} | alerts={with_alerts}"
+        )
+
+        svc = NewsAnalysisService.from_config(session, use_ai=use_ai)
+        result = asyncio.run(
+            svc.analyze_batch(items, concurrency=concurrency, skip_existing=not reanalyze)
+        )
+
+        alert_result = None
+        if with_alerts and result.analyses:
+            alert_svc = AlertService(session)
+            alert_result = alert_svc.process_analyses(result.analyses)
+
+    typer.echo("")
+    typer.secho("分析完成：", fg=typer.colors.GREEN)
+    typer.echo(f"  total                : {result.total}")
+    typer.echo(f"  ai_success           : {result.ai_success}")
+    typer.echo(f"  rule_fallback        : {result.rule_fallback}")
+    typer.echo(f"  skipped (already)    : {result.skipped}")
+    typer.echo(f"  failed               : {result.failed}")
+    processed = result.ai_success + result.rule_fallback
+    if processed:
+        ai_ratio = result.ai_success / processed
+        typer.echo(f"  AI 成功率            : {ai_ratio:.1%}")
+
+    if alert_result is not None:
+        typer.echo("")
+        typer.secho("告警决策：", fg=typer.colors.GREEN)
+        typer.echo(f"  P0                   : {alert_result.p0}")
+        typer.echo(f"  P1                   : {alert_result.p1}")
+        typer.echo(f"  P2                   : {alert_result.p2}")
+        typer.echo(f"  P3 (skipped DB)      : {alert_result.p3_skipped}")
+        typer.echo(f"  already existed      : {alert_result.already_existed}")
 
 
 def main() -> None:
