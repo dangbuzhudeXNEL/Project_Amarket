@@ -126,16 +126,22 @@ Project_Amarket/
 
 详细规范见 [`CONTRIBUTING.md`](CONTRIBUTING.md)。
 
-## 快速开始（M0 完成后）
+## 快速开始
 
+**完整指南**：[`docs/LOCAL_DEPLOYMENT.md`](docs/LOCAL_DEPLOYMENT.md)（含故障排查、`.env` 每项说明、端到端验证）
+
+**速记版本**：
 ```bash
-# 1. clone + 装 uv（见 CONTRIBUTING §2）
-# 2. 装依赖
-uv sync --dev
+# 1. clone + 装 uv（详见上面链接）
+git clone https://github.com/dangbuzhudeXNEL/Project_Amarket.git
+cd Project_Amarket
 
-# 3. 配置 .env
+# 2. 装依赖 + 初始化 DB
+uv sync --dev
+uv run alembic upgrade head
+
+# 3. 配置 .env（可先留空）
 cp .env.example .env
-# 编辑 .env 填入企微 / 飞书 webhook + AI API key（Phase 1 至少配一个）
 
 # 4. 跑测试
 uv run pytest -x
@@ -144,6 +150,11 @@ uv run pytest -x
 ./start.bat                 # Windows
 ./start.sh                  # Linux/macOS
 ```
+
+启动后访问：
+- API docs: http://127.0.0.1:8080/docs
+- Healthz: http://127.0.0.1:8080/healthz
+- Dashboard: http://127.0.0.1:8501
 
 ## 安全与合规
 

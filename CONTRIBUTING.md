@@ -16,6 +16,14 @@
 
 ## 2. 上手 (Onboarding) — 30 分钟内跑通
 
+**👉 详细分步指南见 [`docs/LOCAL_DEPLOYMENT.md`](docs/LOCAL_DEPLOYMENT.md)**，包含：
+- 装 uv / Python 的细节
+- `.env` 每一项的用途
+- 启动验证 checklist
+- 12 种常见故障的排查
+
+**速记 6 步版本**（适合已经搭过的成员复习）：
+
 ```bash
 # 1. clone
 git clone https://github.com/dangbuzhudeXNEL/Project_Amarket.git
@@ -25,14 +33,14 @@ cd Project_Amarket
 # Windows: irm https://astral.sh/uv/install.ps1 | iex
 # macOS/Linux: curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# 3. （M0 完成后才有 pyproject.toml）安装依赖
+# 3. 安装依赖
 uv sync --dev
 
-# 4. 配置 .env
+# 4. 配置 .env（可全留空，能跑）
 cp .env.example .env
-# 编辑 .env 填入企微 / 飞书 webhook 等
 
-# 5. 跑测试
+# 5. 初始化 DB + 跑测试
+uv run alembic upgrade head
 uv run pytest -x
 
 # 6. 启动
@@ -40,7 +48,7 @@ uv run pytest -x
 ./start.sh     # Linux/macOS
 ```
 
-如果到第 6 步还没跑通，**先在群里说**，不要憋着调一下午。
+如果到第 6 步还没跑通，**先在群里说 + 贴报错**，不要憋着调一下午。
 
 ---
 
