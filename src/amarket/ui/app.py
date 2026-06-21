@@ -149,7 +149,64 @@ else:
 
 st.divider()
 
-# ----------------------- 📰 最近新闻预览（M1） -----------------------
+# ----------------------- 🚨 P0-P3 告警（M2-i） -----------------------
+st.subheader("🚨 P0-P3 告警（最近 50 条）")
+st.caption(
+    "基于 NewsAnalysis 自动决策：P0 黑天鹅/重大政策 / P1 即时推送 / P2 30min 汇总 / P3 仅入库"
+)
+
+alert_filter_col, _ = st.columns([2, 6])
+alert_level_filter = alert_filter_col.selectbox(
+    "等级筛选",
+    options=["（全部 P0-P2）", "P0", "P1", "P2"],
+    index=0,
+)
+alert_query = ""
+if alert_level_filter not in {"（全部 P0-P2）"}:
+    alert_query = f"?level={alert_level_filter}&limit=50"
+else:
+    alert_query = "?limit=50"
+
+try:
+    with httpx.Client(timeout=3.0) as client:
+        resp = client.get(f"http://{cfg.api.host}:{cfg.api.port}/api/alerts{alert_query}")
+    alerts_data = resp.json()
+    alerts = alerts_data.get("items", [])
+    alerts_total = alerts_data.get("total", 0)
+except httpx.RequestError:
+    alerts = []
+    alerts_total = 0
+
+if not alerts:
+    st.info("尚无告警。先跑 `uv run amarket analyze news` 触发 NewsAnalysis → AlertService 决策。")
+else:
+    st.write(f"**显示 {len(alerts)} / {alerts_total} 条告警**")
+    # 统计每个 level 的数量
+    level_counts: dict[str, int] = {}
+    for a in alerts:
+        level_counts[a["level"]] = level_counts.get(a["level"], 0) + 1
+    summary_parts = [f"**{lv}: {n}**" for lv, n in sorted(level_counts.items())]
+    st.write(" ｜ ".join(summary_parts))
+
+    for a in alerts[:20]:  # 只展示 top 20 避免过长
+        level = a["level"]
+        level_color = {"P0": "🔴", "P1": "🟠", "P2": "🟡"}.get(level, "⚪")
+        with st.container():
+            head, time_col = st.columns([5, 1])
+            with head:
+                title_display = a.get("news_title") or f"news_id={a.get('news_id')}"
+                st.markdown(f"{level_color} **{level}** | {title_display}")
+                cat = a.get("primary_category") or "?"
+                src = a.get("news_source") or "?"
+                st.caption(f"📡 {src}　|　🏷 {cat}　|　💡 {a.get('trigger_reason', '')}")
+            with time_col:
+                created = (a.get("created_at") or "")[:19].replace("T", " ")
+                st.caption(created)
+            st.divider()
+
+st.divider()
+
+# ----------------------- 📰 最近新闻预览（M1 + M2-i 升级） -----------------------
 st.subheader("📰 最近新闻预览")
 st.caption(
     "数据来源：东方财富 7x24 + 新浪财经 7x24 + 雅虎财经 RSS。刷新数据：`uv run amarket collect news`"
@@ -188,7 +245,34 @@ else:
                     st.markdown(f"**[{title}]({item['url']})**")
                 else:
                     st.markdown(f"**{title}**")
-                st.caption(f"📡 {item['source']}")
+
+                # 分析 badges 行（M2-i 升级）
+                badges: list[str] = [f"📡 {item['source']}"]
+                if item.get("alert_level"):
+                    lv = item["alert_level"]
+                    badges.append({"P0": "🔴 P0", "P1": "🟠 P1", "P2": "🟡 P2"}.get(lv, lv))
+                if item.get("primary_category"):
+                    badges.append(f"🏷 {item['primary_category']}")
+                if item.get("sentiment"):
+                    s = item["sentiment"]
+                    sent_icon = {
+                        "强利多": "🚀",
+                        "利多": "⬆",
+                        "中性": "➡",
+                        "利空": "⬇",
+                        "强利空": "💥",
+                        "不确定": "❓",
+                    }.get(s, "")
+                    badges.append(f"{sent_icon} {s}")
+                if item.get("importance"):
+                    badges.append(f"⭐ imp={item['importance']}")
+                if item.get("urgency"):
+                    badges.append(f"⚡ urg={item['urgency']}")
+                if item.get("tags"):
+                    tags_str = " ".join(f"`{t}`" for t in item["tags"][:3])
+                    badges.append(tags_str)
+                st.caption("　|　".join(badges))
+
                 if item.get("summary"):
                     st.write(item["summary"])
             with time_col:
@@ -205,21 +289,24 @@ milestones = [
     # M0 — 已完成
     ("M0", "项目骨架 + 工具链 + CI + DB + API/UI 入口 + Notifier 骨架", True),
     ("M0+", "通知预留 (healthz + Streamlit + CLI notify)", True),
-    # M1 — 进行中（feature branch）
-    ("M1-a", "完整 11+ 张表 SQLModel + Alembic migration", True),
-    ("M1-b", "NewsSource 接口 + 3 个源 (东财 / 新浪 / 雅虎)", True),
-    ("M1-c", "MarketDataSource + akshare 主要指数", True),
-    ("M1-d", "Repository 层 (6 个 repo)", True),
-    ("M1-e", "API endpoints (/api/news + /api/dashboard/*)", True),
-    ("M1-f", "NewsCollector + CLI `amarket collect news/market`", True),
-    ("M1-g", "集成测试 + Adapter 单元测试 (90.14% 覆盖率)", True),
-    ("M1-h", "Streamlit 可视化 + 文档收尾 (本次提交)", True),
-    # M2+ — 未开始
-    ("M2", "新闻去重 + 8 类分类 + P0-P3 告警决策", False),
-    ("M3", "完整看板 API + 静态 HTML POC", False),
-    ("M4", "6 时段日报 + AI 分析 + 全渠道推送", False),
-    ("M5", "参数配置模块 (版本/回滚/审计)", False),
-    ("M6", "集成测试 + UML + 试运行", False),
+    # M1 — 已完成
+    ("M1", "数据基座（16 表 + 3 新闻源 + akshare + Repo + API + viz）", True),
+    # M2 — 进行中
+    ("M2-a", "规则配置 YAML（keywords / sectors / classification）", True),
+    ("M2-g", "AI 双路径架构（Brainmaster + SDK FallbackChain）", True),
+    ("M2-b", "NewsDeduper（URL / 标题 / SimHash 三层 + events 聚合）", True),
+    ("M2-c", "NewsClassifier（一级 8 类 + 二级 14 板块 + 标的）", True),
+    ("M2-d", "SimpleRuleScorer（importance / urgency / sentiment）", True),
+    ("M2-e", "NewsAnalysis 编排服务（写 news_analysis 表）", True),
+    ("M2-f", "AlertService（P0-P3 决策 + alerts 表）", True),
+    ("M2-h", "API 升级（/api/news 带分析字段 + /api/alerts）", True),
+    ("M2-i", "Dashboard 升级（告警区 + 新闻分析 badges）", True),
+    ("M2-j", "集成测试（130 条真新闻喂进 pipeline）", False),
+    # M3+
+    ("M3", "静态 HTML POC 看板", False),
+    ("M4", "真实推送 + APScheduler 调度", False),
+    ("M5", "6 时段自动日报", False),
+    ("M6", "参数配置模块（版本/回滚/审计）", False),
 ]
 
 done = sum(1 for *_, completed in milestones if completed)
