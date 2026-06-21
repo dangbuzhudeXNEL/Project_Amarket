@@ -98,6 +98,16 @@ class NewsRepo(BaseRepo[NewsItem]):
             stmt = stmt.where(NewsItem.published_at >= since)
         return list(self.session.exec(stmt))
 
+    def list_without_event(self, *, limit: int = 500) -> list[NewsItem]:
+        """列出尚未分配 event_id 的新闻（M2-b NewsDeduper 的输入源）。"""
+        stmt = (
+            select(NewsItem)
+            .where(NewsItem.event_id.is_(None))  # type: ignore[union-attr]
+            .order_by(NewsItem.published_at.desc())  # type: ignore[attr-defined]
+            .limit(limit)
+        )
+        return list(self.session.exec(stmt))
+
     def count_filtered(
         self,
         *,
