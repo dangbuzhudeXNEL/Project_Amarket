@@ -24,6 +24,25 @@ class AlertRepo(BaseRepo[Alert]):
         stmt = select(Alert).where(and_(Alert.news_id == news_id, Alert.level == level))
         return self.session.exec(stmt).first()
 
+    def list_for_news(
+        self,
+        *,
+        news_id: int,
+        limit: int = 10,
+    ) -> list[Alert]:
+        """指定 news_id 的所有 alert（按 created_at 倒序），M2-h API 用。
+
+        修 review P0-1：原来 API 用全局 list_recent(limit=50) + Python 过滤，
+        alerts 表破 50 后会静默丢失老 news 的 alert badge。
+        """
+        stmt = (
+            select(Alert)
+            .where(Alert.news_id == news_id)
+            .order_by(Alert.created_at.desc())  # type: ignore[attr-defined]
+            .limit(limit)
+        )
+        return list(self.session.exec(stmt))
+
     def list_recent(
         self,
         *,

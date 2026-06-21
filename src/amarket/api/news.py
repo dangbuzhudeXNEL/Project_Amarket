@@ -56,16 +56,17 @@ def _latest_analysis_for(repo: NewsAnalysisRepo, news_id: int) -> NewsAnalysis |
 
 
 def _highest_alert_for(repo: AlertRepo, news_id: int) -> Alert | None:
-    """优先返回 P0 > P1 > P2 的 alert（一个 news 可能多 alert）。"""
-    rows = repo.list_recent(limit=50)  # 取 recent，按 created_at desc
-    # 过滤同 news_id
-    news_alerts = [a for a in rows if a.news_id == news_id]
-    if not news_alerts:
+    """优先返回 P0 > P1 > P2 的 alert（一个 news 可能多 alert）。
+
+    修 review P0-1：用 repo.list_for_news(news_id) 直接查目标 news，避免
+    全局 list_recent(limit=50) 在 alerts 表增长后静默丢失老 news 告警。
+    """
+    rows = repo.list_for_news(news_id=news_id, limit=10)
+    if not rows:
         return None
-    # P0 > P1 > P2 > P3
     level_priority = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
-    news_alerts.sort(key=lambda a: level_priority.get(a.level.value, 99))
-    return news_alerts[0]
+    rows.sort(key=lambda a: level_priority.get(a.level.value, 99))
+    return rows[0]
 
 
 @router.get("", response_model=NewsListResponse)

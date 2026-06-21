@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from amarket.api.dependencies import db_session
@@ -92,15 +93,15 @@ async def list_alerts(
             )
         )
 
-    # total 用同 filter 查个完整 count
-    cnt_stmt = select(Alert)
+    # total 用 SQL COUNT（修 review P1-4：之前 len(list(...)) 表大时会慢）
+    cnt_stmt = select(func.count()).select_from(Alert)
     if since:
         cnt_stmt = cnt_stmt.where(Alert.created_at >= since)
     if levels:
         cnt_stmt = cnt_stmt.where(Alert.level.in_(levels))  # type: ignore[attr-defined]
     if status_filter:
         cnt_stmt = cnt_stmt.where(Alert.status == status_filter)
-    total = len(list(session.exec(cnt_stmt)))
+    total = int(session.exec(cnt_stmt).one())
 
     return AlertListResponse(items=items, total=total, offset=offset, limit=limit)
 
