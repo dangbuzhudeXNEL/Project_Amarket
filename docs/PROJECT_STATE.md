@@ -9,25 +9,17 @@
 ## 🎯 下次 Session 必读：3 件事
 
 ### 1. 当前状态
-- ✅ **main 上 CI 绿**（HEAD `034bb6e`，含 PR #1 部署文档）
+- ✅ **main 上 CI 绿**（HEAD `1773bbd`，含 PR #1 部署文档 + **PR #2 M2 智能层完整闭环**）
+- ✅ **M2 已 merge 到 main** — feat/m2-news-processing 分支已删除
 - ✅ **DB 现状**：130 条新闻 + 12 条 A 股指数 + 130 NewsEvent + **130 NewsAnalysis + 73 Alerts (1 P0 + 1 P1 + 71 P2)**
 - ✅ **Dashboard 全功能可用**（告警区 + 新闻 badges + milestone 进度）
 - ✅ **Phase 1 M2 智能层全部 11/11 子任务完成**，端到端 pipeline 已跑通真实数据
-- ✅ **code-reviewer agent 已通过专业 review**，P0 + 1 个 P1 已修，剩 4 个 P1 留 TODO
-- ⏳ **当前在 `feat/m2-news-processing` 分支 (`d9d6ac2`)** — **准备开 PR 合 main**
+- ✅ **code-reviewer agent 已通过专业 review**，P0 + 1 P1 已修，4 P1 留 TODO 给 M3
 
 ### 2. 立刻可做（下次 session 开干）
-**两条路径任选**：
+**Phase 1 M3 — 静态 HTML POC 看板**：5 个静态页面（首页 / 新闻流 / 详情页 / 板块热力图 / 日报页）。
 
-#### 路径 A（推荐）：开 PR 把 M2 合 main
-- 整理 PR description（列 M2 全部子任务 + 测试结果 + reviewer 报告）
-- 等 CI 全绿
-- self-merge 到 main
-- 然后开 M3
-
-#### 路径 B：直接进 M3 不先合
-- 风险：feat 分支越来越大，main 落后
-- 不推荐
+或者优先修 M3 启动前的 reviewer P1 backlog（见下）— 推荐先收 backlog 再上 M3，避免技术债。
 
 ### 3. M3 启动前必修（reviewer P1，已在 backlog）
 - **P1-1**：`_has_any_analysis` 改 provider-aware（避免 rule 锁死）
@@ -133,9 +125,9 @@
 ## 速查表
 
 - **当前 spec**: `docs/superpowers/specs/2026-06-19-spec1-v3-merged.md`
-- **当前 branch**: `feat/m2-news-processing` (commit `d9d6ac2`)
-- **main HEAD**: `034bb6e` (CI 绿 ✅，含 PR #1)
-- **Phase / Milestone**: Phase 1 / **M2 已完成（11/11）** → 准备开 PR 合 main
+- **当前 branch**: `main` (commit `1773bbd`) ⭐ M2 已合
+- **main HEAD**: `1773bbd` (CI 绿 ✅，含 PR #1 + **PR #2 M2**)
+- **Phase / Milestone**: Phase 1 / **M2 已完成（11/11）merged to main** → 准备 M3
 - **DB 现状**:
   - 130 条新闻（sina 60 + eastmoney 50 + yahoo 20）
   - 12 条 A 股指数快照

@@ -11,6 +11,100 @@ Each Spec corresponds to a major milestone. Within a Spec, M0-M9 are intermediat
 
 ## [Unreleased] — Spec #1 v3 进行中
 
+### Added — Phase 1 M2 智能层完整闭环（2026-06-21, Sessions 08-10, merged via PR #2）
+
+**Phase 1 M2：新闻去重 + 分类 + 评分 + AI 分析 + P0-P3 告警 + 完整 pipeline** ✅
+11 个子任务（M2-a 至 M2-k）全部完成，端到端 pipeline 用 130 条真新闻验证通过。
+
+#### M2-b NewsDeduper — 三层去重 + 事件聚合（Session 08）
+- L1 URL 完全相同 / L2 标题 normalize 后相同 / L3 SimHash 距离 < 3
+- 写 `news_events` 聚合表 + 回填 `news_items.event_id + content_hash`
+- 幂等：已分配 event_id 跳过；top_source 按命中频次自动更新
+- 19 单测 / 93% coverage / `amarket dedupe news` CLI
+
+#### M2-c NewsClassifier — 规则一级 / 二级 / 板块 / 标的（Session 09）
+- 一级 8 类（multi_label，按 priority 排序）+ 二级 14+ 板块 + 代表股关联
+- 黑名单标记不阻断分类（由上层决定怎么用）
+- `from_config()` 一键加载真实 YAML
+- 16 单测 / 93% coverage
+
+#### M2-d SimpleRuleScorer — 规则路径评分（Session 09）
+- importance/urgency 1-5 + sentiment 6 级 + confidence 固定 3
+- 分类基线 + 热词权重 + source priority delta + 多板块加分
+- urgency 受 max_urgency_bonus cap，盘中 +1（Asia/Shanghai 工作日 09:30-11:30/13:00-15:00）
+- 22 单测 / 95% coverage
+
+#### M2-e NewsAnalysisService — 编排（Session 10）
+- 工作流：Classifier → AIProvider (FallbackChain) → Scorer 兜底 → 写 `news_analysis`
+- 幂等 upsert by `(news_id, processed_by)`
+- 异步批处理 + `asyncio.Semaphore` 并发控制 + 单条失败不拖垮 batch
+- `AnalysisBatchResult` 统计 ai_success / rule_fallback / skipped / failed
+- 10 单测含 fake AI provider 三态（success / fail / disabled）
+
+#### M2-f AlertService — P0-P3 决策（Session 10）
+- Spec §8.7 决策表：P0 (RISK/MACRO ∧ imp≥5 ∧ urg≥5) / P1 (imp≥4 ∧ urg≥4) / P2 (imp≥3) / P3
+- 只对 P0/P1/P2 写 alerts 表；P3 仅留在 news_analysis
+- 幂等 by `(news_id, level)`
+- 纯函数 `evaluate_alert_level()` 可单独测；17 单测含 parametrize 决策表全 8 组
+
+#### M2-h API 升级（Session 10）
+- `/api/news` 自动 join 最新 NewsAnalysis + 最高 Alert，填充 primary_category / tags / sentiment / importance / urgency / alert_level
+- 新增 `/api/alerts`（filter by level/status/since，含 news_title join）
+- `AlertDTO` + `AlertListResponse` schemas
+
+#### M2-i Dashboard 升级（Session 10）
+- 新增 🚨 P0-P3 告警区（颜色标记 + level 筛选 + 触发原因展示）
+- 新闻列表 badges：alert_level / 分类 / 情绪图标 / imp/urg / tags
+- Milestone 进度同步到 M2 子任务粒度
+
+#### M2-j 端到端集成测试（Session 10）
+- 130 条真新闻 → `amarket analyze news --no-ai --reanalyze`
+- 结果：130 NewsAnalysis (rule_fallback) + 0 failed
+- AlertService：**1 P0**（马克龙伊朗战争）+ **1 P1**（韩国前防长泄密）+ **71 P2** + **57 P3**
+- DB 一致：news_analysis 130 行 / alerts 73 行 ✓
+- API 验证：`curl /api/alerts?level=P0` 正确返回 1 条
+
+#### M2-k 收尾 + Code Review
+- 调用 superpowers:code-reviewer agent 全面 review
+- **报告**：1 P0 + 5 P1 + 6 P2
+- **已修**：P0-1（`_highest_alert_for` 重写）+ P1-4（`/api/alerts` total 用 SQL COUNT）
+- **进 backlog**（M3 启动前必收）：
+  - P1-1 `_has_any_analysis` provider-agnostic skip
+  - P1-2 等级升档双 alert 隐患
+  - P1-3 黑名单与 alert 关系设计
+  - P1-5 `asyncio.gather` + 共享 session race 隐患
+- **进 backlog**（nice-to-have，无阻塞）：P2-1 至 P2-6 详见 `docs/sessions/2026-06-21-10-m2-complete.md`
+
+### 统计
+- **38 文件 / 5687 行新增**（5 个 commit squash 成 main `1773bbd`）
+- **195 tests passed**（从 91 → 195，+104 个 M2 测试）
+- **覆盖率 87.25%**（deduper 93% / classifier 93% / scorer 95% / analysis 88% / alert 96%）
+- Mypy 66 files / Ruff / Pytest 全绿；CI 5/5 check 全过
+
+### CLI 新增
+- `amarket dedupe news [--limit] [--threshold] [--lookback-hours]`
+- `amarket analyze news [--ai/--no-ai] [--alerts/--no-alerts] [--concurrency] [--reanalyze]`
+
+### 设计决策（与 spec 一致）
+- 默认 SimHash threshold=3（保守对齐 spec），生产可调到 8-10 平衡精召
+- 黑名单只标记不阻断（M2-e/AI 路径有更多上下文做决策）
+- 规则路径 confidence 固定 3（AI 路径会另算）
+- AlertService 不考虑 subscriptions（留 M6 参数模块上线后接入）
+
+### 已知不足（待后续 milestone 优化）
+- 一级分类：英文 Yahoo 模板新闻全 fallback 到"市场行情"（M2-e AI 路径可补语义判断）
+- Sentiment：规则路径覆盖 hint 词少，130 条真新闻全 NEUTRAL（M2-e AI 必须接通才有效）
+- Pipeline 节点：当前 collector + dedupe + analyze 是 CLI 手动触发；M4 起接 APScheduler 自动跑
+
+### Added — PR #1: 本地部署指南（2026-06-21, Session 08, merged `034bb6e`）
+
+**Phase 1 文档加固**：给小组成员的完整本地部署文档 ✅
+
+- 新增 `docs/LOCAL_DEPLOYMENT.md`（11 节 + 12 个 FAQ）
+- 覆盖：uv 装法（Win/Mac/Linux）/ Python 自动管理 / 可选行情依赖 / `.env` 每项说明 / DB 初始化 / 跑测试验证 / 启动 + 4 URL 验证 / 端到端验证 / 常用命令 / 开发工作流 / 12 种故障排查
+- `CONTRIBUTING.md §2` + `README.md 快速开始` 改为指向新文档
+- 393 行新文档 / CI 5/5 全过
+
 ### Added — Phase 1 M2-a + M2-g 开场（2026-06-19, Session 06, branch `feat/m2-news-processing`）
 
 **M2-a 规则配置 + M2-g 双路径 AI 架构** ✅（M2 后续 b/c/d/e/f/h/i/j/k 下次 session）
