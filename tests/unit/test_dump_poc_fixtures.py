@@ -13,9 +13,9 @@ from sqlmodel import Session, SQLModel, create_engine
 # 把 scripts/ 加入 sys.path 以便 import dump_poc_fixtures
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
 
-import dump_poc_fixtures as dpf  # noqa: E402
+import dump_poc_fixtures as dpf
 
-from amarket.domain.enums import (  # noqa: E402
+from amarket.domain.enums import (
     ActionHint,
     AlertLevel,
     ImpactHorizon,
@@ -23,7 +23,7 @@ from amarket.domain.enums import (  # noqa: E402
     Sentiment,
     SourcePriority,
 )
-from amarket.domain.models import (  # noqa: E402
+from amarket.domain.models import (
     Alert,
     MarketSnapshot,
     NewsAnalysis,
@@ -45,9 +45,7 @@ def tmp_engine(tmp_path: Path):
 def seeded_session(tmp_engine):
     """种入：1 source + 3 news + 2 analysis + 1 alert + 2 market_snapshot。"""
     with Session(tmp_engine) as s:
-        src = NewsSource(
-            code="ths", name="同花顺", priority=SourcePriority.HIGH, enabled=True
-        )
+        src = NewsSource(code="ths", name="同花顺", priority=SourcePriority.HIGH, enabled=True)
         s.add(src)
         s.commit()
         s.refresh(src)
@@ -144,11 +142,14 @@ def seeded_session(tmp_engine):
         s.add_all([ms1, ms2])
         s.commit()
 
-        yield s, {
-            "src_id": src.id,
-            "news_ids": [n1.id, n2.id, n3.id],
-            "alert_id": alert.id,
-        }
+        yield (
+            s,
+            {
+                "src_id": src.id,
+                "news_ids": [n1.id, n2.id, n3.id],
+                "alert_id": alert.id,
+            },
+        )
 
 
 # ===== Task 5 测试 — 骨架可调用 =====
@@ -171,7 +172,7 @@ def test_main_creates_empty_jsons(tmp_path, monkeypatch, tmp_engine):
 
 
 def test_dump_news_returns_enriched_dto(seeded_session):
-    session, ids = seeded_session
+    session, _ids = seeded_session
     result = dpf.dump_news(session, limit=10)
     assert len(result) == 3, "should dump all 3 seeded news"
     # 按 published_at 倒序：n3 最新
@@ -223,7 +224,7 @@ def test_dump_dashboard_aggregates(seeded_session):
 
 
 def test_dump_news_details_writes_per_id_files(seeded_session, tmp_path):
-    session, ids = seeded_session
+    session, _ids = seeded_session
     ids_written = dpf.dump_news_details(session, tmp_path, limit=2, pretty=False)
     assert len(ids_written) == 2
     for nid in ids_written:

@@ -21,8 +21,8 @@ from typing import Any
 # Windows cp1252 console fix — POC dump 输出有中文进度
 if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
     try:
-        sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
-        sys.stderr.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
+        sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
+        sys.stderr.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
     except (AttributeError, OSError):
         pass
 
@@ -42,7 +42,9 @@ DEFAULT_OUT = Path("poc/assets/data")
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Dump amarket DB → POC mock JSON files.")
     p.add_argument("--db", default=DEFAULT_DB, help="SQLAlchemy URL (default: %(default)s)")
-    p.add_argument("--out", type=Path, default=DEFAULT_OUT, help="Output dir (default: %(default)s)")
+    p.add_argument(
+        "--out", type=Path, default=DEFAULT_OUT, help="Output dir (default: %(default)s)"
+    )
     p.add_argument("--limit", type=int, default=300, help="Max news items to dump")
     p.add_argument(
         "--detail-samples", type=int, default=5, help="How many news-detail-*.json to dump"
@@ -82,14 +84,10 @@ def main() -> int:
         )
 
         print("\n=== Dumping news.json ===")
-        write_json(
-            out / "news.json", dump_news(session, limit=args.limit), pretty=args.pretty
-        )
+        write_json(out / "news.json", dump_news(session, limit=args.limit), pretty=args.pretty)
 
         print(f"\n=== Dumping news-detail-*.json (top {args.detail_samples}) ===")
-        for nid in dump_news_details(
-            session, out, limit=args.detail_samples, pretty=args.pretty
-        ):
+        for nid in dump_news_details(session, out, limit=args.detail_samples, pretty=args.pretty):
             print(f"  [OK] news-detail-{nid}.json")
 
         print("\n=== Dumping alerts.json ===")
@@ -112,7 +110,6 @@ def main() -> int:
 
 
 def _news_to_card(
-    session: Session,
     news: NewsItem,
     source: NewsSource,
     analysis: NewsAnalysis | None,
@@ -266,13 +263,11 @@ def dump_news(session: Session, *, limit: int) -> list[dict[str, Any]]:
         ana = _pick_best_analysis(analyses)
         alerts = alert_repo.list_for_news(news_id=news.id, limit=10)
         alt = _highest_alert(alerts)
-        result.append(_news_to_card(session, news, src, ana, alt))
+        result.append(_news_to_card(news, src, ana, alt))
     return result
 
 
-def dump_news_details(
-    session: Session, out: Path, *, limit: int, pretty: bool
-) -> list[int]:
+def dump_news_details(session: Session, out: Path, *, limit: int, pretty: bool) -> list[int]:
     """Dump top N news 的详情（含 related_news 同事件其他 news）到独立文件。"""
     from sqlmodel import select
 
@@ -288,7 +283,7 @@ def dump_news_details(
         ana = _pick_best_analysis(analyses)
         alerts = alert_repo.list_for_news(news_id=news.id, limit=10)
         alt = _highest_alert(alerts)
-        card = _news_to_card(session, news, src, ana, alt)
+        card = _news_to_card(news, src, ana, alt)
 
         related: list[dict[str, Any]] = []
         if news.event_id is not None:
