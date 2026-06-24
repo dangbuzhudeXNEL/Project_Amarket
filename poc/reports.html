@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="okx">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Amarket — 日报（PR2 即将）</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="assets/css/theme-okx.css">
+  <script src="assets/js/shared.js"></script>
+  <script src="assets/js/nav.js"></script>
+</head>
+<body>
+  <div id="topbar-mount"></div>
+
+  <main class="page-shell">
+    <div class="coming-soon">
+      <div class="cs-badge">PR2 · 即将到来</div>
+      <h1>6 时段日报展示</h1>
+      <p>每天 6 个时段自动生成的 A 股新闻日报：<strong>盘前 / 早盘 / 午间 / 尾盘 / 收盘 / 晚间</strong>。Markdown 渲染（marked.js CDN），完整保留 AI 写手生成的格式与板块分析。</p>
+
+      <div class="cs-features">
+        <div class="cs-feature">
+          <div class="cs-feature-title">📅 时段切换 Tab</div>
+          <div class="cs-feature-desc">6 个时段一键切换；未生成的时段灰禁用 + "等待 M4 调度"</div>
+        </div>
+        <div class="cs-feature">
+          <div class="cs-feature-title">📝 Markdown 渲染</div>
+          <div class="cs-feature-desc">marked.js + 自定义样式，匹配 OKX 暗色风</div>
+        </div>
+        <div class="cs-feature">
+          <div class="cs-feature-title">🗓 历史日报</div>
+          <div class="cs-feature-desc">日期选择器查看历史；M3a 仅当天 mock，M4 真填后翻历史</div>
+        </div>
+        <div class="cs-feature">
+          <div class="cs-feature-title">🔄 重新推送</div>
+          <div class="cs-feature-desc">M5 加 "重新推送" 按钮，触发企微/飞书重发</div>
+        </div>
+      </div>
+
+      <p class="mt-6 text-muted" style="font-size:13px">先回 <a href="index.html">首页</a> 看 6 时段日报入口（首页底部 ⑨ 区域，"盘前" 已有 mock）</p>
+    </div>
+  </main>
+</body>
+</html>

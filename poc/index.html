@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="okx">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -25,7 +25,7 @@
   <script src="assets/js/nav.js"></script>
   <script defer src="assets/js/pages/index.js"></script>
 </head>
-<body data-theme="okx">
+<body>
 
   <!-- 顶部 nav 注入点 -->
   <div id="topbar-mount"></div>
@@ -34,36 +34,59 @@
 
     <!-- 全局 error banner 由 shared.js showBanner() 注入 -->
 
-    <!-- ① 市场状态栏 -->
-    <section class="card mb-4">
-      <div class="flex gap-4" style="overflow-x:auto">
+    <!-- Macro 顶条（KPI 横条）-->
+    <div class="macro-bar">
+      <div class="mb-stat">
+        <div class="mb-label">总新闻</div>
+        <div class="mb-value" x-text="news.length"></div>
+      </div>
+      <div class="mb-stat">
+        <div class="mb-label">告警 P0/P1</div>
+        <div class="mb-value text-down" x-text="importantAlerts.length"></div>
+      </div>
+      <div class="mb-stat">
+        <div class="mb-label">板块上涨</div>
+        <div class="mb-value text-up" x-text="sectorsUp + ' / ' + (topSectors.length || 14)"></div>
+      </div>
+      <div class="mb-stat">
+        <div class="mb-label">数据时间</div>
+        <div class="mb-value" style="font-size:14px" x-text="dataTime"></div>
+      </div>
+    </div>
+
+    <!-- ① 市场状态栏（Hero 大数字卡片）-->
+    <section class="mb-6">
+      <div class="card-title with-accent">市场行情</div>
+      <div class="market-strip">
         <template x-for="idx in marketStatus.indexes" :key="idx.code">
-          <div class="flex flex-col" style="min-width:140px">
-            <span class="text-muted" style="font-size:11px" x-text="idx.name"></span>
-            <span class="num" style="font-size:18px;font-weight:500" x-text="fmt.num(idx.price)"></span>
-            <span class="num" :class="fmt.pctClass(idx.change_pct)" x-text="fmt.pctText(idx.change_pct)"></span>
+          <div class="market-card">
+            <div class="mc-name" x-text="idx.name"></div>
+            <div class="mc-price" :class="fmt.pctClass(idx.change_pct)" x-text="fmt.num(idx.price)"></div>
+            <div class="mc-change">
+              <span class="pill" :class="(idx.change_pct ?? 0) >= 0 ? 'pill-up' : 'pill-down'" x-text="fmt.pctText(idx.change_pct)"></span>
+            </div>
           </div>
         </template>
-        <div x-show="!marketStatus.indexes.length" class="text-muted">暂无行情数据</div>
+        <div x-show="!marketStatus.indexes.length" class="text-muted p-4">暂无行情数据 · 跑 <code>uv run amarket collect market</code></div>
       </div>
     </section>
 
     <!-- ② 今日核心结论 -->
-    <section class="card mb-4">
-      <div class="card-title">今日核心结论</div>
-      <p x-text="data.today_conclusion || '（M4 接盘前日报后填充）'"></p>
+    <section class="card card-elevated mb-6">
+      <div class="card-title with-accent">今日核心结论</div>
+      <p style="font-size:15px;line-height:1.7;margin:0" x-text="data.today_conclusion || '（M4 接盘前日报后填充 — 当前为占位）'"></p>
     </section>
 
-    <!-- ③ 实时新闻流 (左 6/12) ＋ ④/⑤/⑥/⑦/⑧ (右 6/12) -->
+    <!-- ③ 实时新闻流 (左 7/12) ＋ ④/⑤/⑥/⑦/⑧ (右 5/12) -->
     <div class="grid-cols-12">
 
-      <section class="col-span-6 card">
-        <div class="card-title flex justify-between items-center">
+      <section class="col-span-7 card">
+        <div class="card-title with-accent flex justify-between items-center">
           <span>实时新闻流</span>
           <span class="text-muted" style="font-size:11px" x-text="`共 ${filteredNews.length} 条`"></span>
         </div>
         <!-- 筛选 -->
-        <div class="flex gap-2 mb-2" style="flex-wrap:wrap">
+        <div class="flex gap-2 mb-4" style="flex-wrap:wrap">
           <select x-model="filter.category">
             <option value="">全部分类</option>
             <template x-for="c in categories" :key="c">
@@ -80,25 +103,25 @@
           </select>
           <select x-model.number="filter.minImportance">
             <option :value="0">所有重要性</option>
-            <option :value="3">≥ 3</option>
-            <option :value="4">≥ 4</option>
-            <option :value="5">= 5</option>
+            <option :value="3">≥ 3 ★</option>
+            <option :value="4">≥ 4 ★</option>
+            <option :value="5">= 5 ★</option>
           </select>
           <button @click="resetFilter()" class="btn">清空</button>
         </div>
         <!-- 新闻列表 -->
-        <div class="scroll-area" style="max-height:600px">
+        <div class="scroll-area">
           <template x-for="item in filteredNews.slice(0, 30)" :key="item.news_id">
-            <a :href="`news-detail.html?id=${item.news_id}`" style="display:block;padding:12px;border-bottom:1px solid var(--border-default)">
-              <div class="flex justify-between items-center mb-2">
-                <span class="num text-muted" style="font-size:11px" x-text="fmt.timeAgo(item.published_at)"></span>
-                <div class="flex gap-1 items-center">
+            <a :href="`news-detail.html?id=${item.news_id}`" class="news-row">
+              <div class="nr-meta">
+                <span class="num" x-text="fmt.timeAgo(item.published_at)"></span>
+                <div class="flex gap-2 items-center">
                   <span x-show="item.alert_level" :class="fmt.alertClass(item.alert_level)" x-text="item.alert_level"></span>
-                  <span class="text-muted" style="font-size:11px" x-text="item.source"></span>
+                  <span x-text="item.source"></span>
                 </div>
               </div>
-              <div style="color:var(--text-primary);font-weight:500;margin-bottom:4px" x-text="item.title"></div>
-              <div class="flex gap-1 items-center" style="font-size:11px;flex-wrap:wrap">
+              <div class="nr-title" x-text="item.title"></div>
+              <div class="nr-tags">
                 <span class="tag" x-show="item.primary_category" x-text="item.primary_category"></span>
                 <span class="stars" x-show="item.importance" x-text="fmt.stars(item.importance)"></span>
                 <span x-show="item.sentiment" :class="fmt.sentClass(item.sentiment)" x-text="item.sentiment"></span>
@@ -109,68 +132,76 @@
         </div>
       </section>
 
-      <div class="col-span-6 flex flex-col gap-4">
+      <div class="col-span-5 flex flex-col gap-4">
 
         <!-- ④ P0/P1 重要新闻卡 -->
         <section class="card">
-          <div class="card-title">P0 / P1 重要新闻</div>
-          <div class="flex flex-col gap-2">
-            <template x-for="alert in importantAlerts.slice(0, 6)" :key="alert.alert_id">
-              <a :href="`news-detail.html?id=${alert.news_id}`" class="card" style="background:var(--bg-hover);padding:12px">
-                <div class="flex justify-between items-center mb-2">
+          <div class="card-title with-accent">P0 / P1 重要新闻</div>
+          <div>
+            <template x-for="alert in importantAlerts.slice(0, 5)" :key="alert.alert_id">
+              <a :href="`news-detail.html?id=${alert.news_id}`" class="alert-card" :class="`lvl-${alert.level.toLowerCase()}`">
+                <div class="ac-head">
                   <span :class="fmt.alertClass(alert.level)" x-text="alert.level"></span>
                   <span class="num text-muted" style="font-size:11px" x-text="fmt.timeAgo(alert.created_at)"></span>
                 </div>
-                <div style="font-weight:500" x-text="alert.news_title || '(无标题)'"></div>
-                <div class="text-muted mt-2" style="font-size:11px" x-text="alert.trigger_reason"></div>
+                <div class="ac-title" x-text="alert.news_title || '(无标题)'"></div>
+                <div class="ac-meta" x-text="alert.trigger_reason"></div>
               </a>
             </template>
             <div x-show="!importantAlerts.length" class="text-muted">当前无 P0/P1 告警</div>
           </div>
         </section>
 
-        <!-- ⑤ 板块热力图（mini，sectors.html 全屏版 PR2 出） -->
+        <!-- ⑤ 板块热力图 -->
         <section class="card">
-          <div class="card-title">板块热力图</div>
-          <div id="sector-heatmap" style="width:100%;height:260px"></div>
-          <div class="text-muted mt-2" style="font-size:11px">点击 <a href="sectors.html">→ 看完整版（PR2）</a></div>
+          <div class="card-title with-accent">板块热力图</div>
+          <div id="sector-heatmap" style="width:100%;height:300px"></div>
+          <div class="text-muted mt-2 flex justify-between items-center" style="font-size:11px">
+            <span>14 板块 · 颜色按涨跌幅</span>
+            <a href="sectors.html">完整版 →</a>
+          </div>
         </section>
 
         <!-- ⑥ 新闻影响板块榜 -->
         <section class="card">
-          <div class="card-title">新闻影响板块榜</div>
+          <div class="card-title with-accent">板块榜（新闻热度）</div>
           <table class="data-grid">
-            <thead><tr><th>板块</th><th style="text-align:right">新闻数</th><th style="text-align:right">涨跌</th></tr></thead>
+            <thead><tr><th>板块</th><th style="text-align:right">新闻</th><th style="text-align:right">涨跌</th></tr></thead>
             <tbody>
-              <template x-for="sec in topSectors" :key="sec.name">
+              <template x-for="sec in topSectors.slice(0,8)" :key="sec.name">
                 <tr>
-                  <td x-text="sec.name"></td>
+                  <td style="font-weight:500" x-text="sec.name"></td>
                   <td style="text-align:right" class="num" x-text="sec.news_count_24h"></td>
-                  <td style="text-align:right" class="num" :class="fmt.pctClass(sec.change_pct)" x-text="fmt.pctText(sec.change_pct)"></td>
+                  <td style="text-align:right">
+                    <span class="pill" :class="sec.change_pct >= 0 ? 'pill-up' : 'pill-down'" x-text="fmt.pctText(sec.change_pct)"></span>
+                  </td>
                 </tr>
               </template>
             </tbody>
           </table>
         </section>
 
-        <!-- ⑦ 个股异动榜（M3a 暂空，M3b 接） -->
+        <!-- ⑦ 个股异动榜（M3b 接） -->
         <section class="card">
-          <div class="card-title">个股异动榜</div>
-          <div class="text-muted">（M3b 接 /api/dashboard/movers）</div>
+          <div class="card-title with-accent">个股异动榜</div>
+          <div class="text-muted p-3" style="text-align:center;font-size:13px">
+            <div style="font-size:32px;margin-bottom:8px">📊</div>
+            M3b 接入 <code>/api/dashboard/movers</code>
+          </div>
         </section>
 
         <!-- ⑧ 突发告警时间线 -->
         <section class="card">
-          <div class="card-title">突发告警</div>
-          <div class="flex flex-col gap-2" style="max-height:300px;overflow-y:auto">
-            <template x-for="alert in allAlerts.slice(0, 10)" :key="alert.alert_id">
-              <div class="flex gap-2 items-center" style="padding:6px 0;border-bottom:1px solid var(--border-default)">
+          <div class="card-title with-accent">突发告警时间线</div>
+          <div class="flex flex-col" style="max-height:300px;overflow-y:auto;gap:2px">
+            <template x-for="alert in allAlerts.slice(0, 12)" :key="alert.alert_id">
+              <div class="flex gap-3 items-center" style="padding:10px 4px;border-bottom:1px solid var(--border-default)">
                 <span :class="fmt.alertClass(alert.level)" x-text="alert.level"></span>
-                <span class="num text-muted" style="font-size:11px;min-width:80px" x-text="fmt.time(alert.created_at)"></span>
-                <a :href="`news-detail.html?id=${alert.news_id}`" style="flex:1" x-text="alert.news_title || alert.trigger_reason"></a>
+                <span class="num text-muted" style="font-size:12px;min-width:50px" x-text="fmt.time(alert.created_at)"></span>
+                <a :href="`news-detail.html?id=${alert.news_id}`" style="flex:1;font-size:13px" x-text="alert.news_title || alert.trigger_reason"></a>
               </div>
             </template>
-            <div x-show="!allAlerts.length" class="text-muted">无告警</div>
+            <div x-show="!allAlerts.length" class="text-muted p-3">无告警</div>
           </div>
         </section>
 
@@ -178,13 +209,17 @@
     </div>
 
     <!-- ⑨ 日报入口 -->
-    <section class="card mt-4">
-      <div class="card-title">日报入口</div>
-      <div class="grid-cols-12" style="gap:8px">
+    <section class="mt-6">
+      <div class="card-title with-accent">6 时段日报</div>
+      <div class="grid-cols-12" style="gap:12px">
         <template x-for="kind in ['premarket','morning','noon','afternoon','close','evening']" :key="kind">
-          <a :href="`reports.html?kind=${kind}`" class="col-span-4 card" :style="reports[kind] ? '' : 'opacity:0.4;pointer-events:none'">
-            <div style="font-size:11px" class="text-muted" x-text="kindLabels[kind]"></div>
-            <div class="mt-2" x-text="reports[kind] ? '✓ 已生成' : '— 未生成'"></div>
+          <a :href="`reports.html?kind=${kind}`" class="col-span-4 card"
+             :style="reports[kind] ? 'border-color:var(--border-accent);box-shadow:0 0 0 1px var(--accent-glow)' : 'opacity:0.45'">
+            <div class="flex justify-between items-center mb-2">
+              <span style="font-size:13px;font-weight:600" x-text="kindLabels[kind]"></span>
+              <span x-text="reports[kind] ? '✓' : '—'" :style="reports[kind] ? 'color:var(--up)' : 'color:var(--text-muted)'"></span>
+            </div>
+            <div class="text-muted" style="font-size:11px" x-text="reports[kind] ? '已生成（mock）' : '等待 M4 调度'"></div>
           </a>
         </template>
       </div>

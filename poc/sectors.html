@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="okx">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Amarket — 板块（PR2 即将）</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="assets/css/theme-okx.css">
+  <script src="assets/js/shared.js"></script>
+  <script src="assets/js/nav.js"></script>
+</head>
+<body>
+  <div id="topbar-mount"></div>
+
+  <main class="page-shell">
+    <div class="coming-soon">
+      <div class="cs-badge">PR2 · 即将到来</div>
+      <h1>板块热力图 · 完整版</h1>
+      <p>14 个 A 股主板块全屏 ECharts treemap，按 <strong>涨跌幅</strong> 或 <strong>新闻热度</strong> 切换维度。点击板块格子下方联动显示该板块最近新闻。</p>
+
+      <div class="cs-features">
+        <div class="cs-feature">
+          <div class="cs-feature-title">📊 全屏 Treemap</div>
+          <div class="cs-feature-desc">14 板块按市值权重展示，颜色映射 -3% 红 → 0 灰 → +3% 绿</div>
+        </div>
+        <div class="cs-feature">
+          <div class="cs-feature-title">🔀 维度切换</div>
+          <div class="cs-feature-desc">涨跌幅 vs 新闻热度 vs 资金流向（M3b 接 SectorTrendService）</div>
+        </div>
+        <div class="cs-feature">
+          <div class="cs-feature-title">⏱ 时间窗口</div>
+          <div class="cs-feature-desc">1h / 4h / 1d 切换；M3a 数据不分窗口（占位）</div>
+        </div>
+        <div class="cs-feature">
+          <div class="cs-feature-title">📰 联动新闻</div>
+          <div class="cs-feature-desc">点板块格子 → 下方加载该板块最近 20 条新闻</div>
+        </div>
+      </div>
+
+      <p class="mt-6 text-muted" style="font-size:13px">先回 <a href="index.html">首页</a> 看 mini 版热力图（首页右侧 ⑤ 区域）</p>
+    </div>
+  </main>
+</body>
+</html>
