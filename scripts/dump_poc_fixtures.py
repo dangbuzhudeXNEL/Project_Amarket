@@ -311,19 +311,190 @@ def dump_news_details(
 
 
 def dump_alerts(session: Session) -> list[dict[str, Any]]:
-    return []
+    repo = AlertRepo(session)
+    alerts = repo.list_recent(limit=200)
+    return [_alert_to_dict(session, a) for a in alerts]
+
+
+# 14 个 A 股主板块 + mock 涨跌幅（M3a 占位，M3b 接 SectorTrendService 时换真实数据）
+_SECTORS_14 = [
+    "券商",
+    "银行",
+    "保险",
+    "半导体",
+    "新能源",
+    "医药",
+    "白酒",
+    "地产链",
+    "煤炭",
+    "钢铁",
+    "军工",
+    "通信",
+    "传媒",
+    "AI",
+]
 
 
 def dump_sectors_placeholder() -> dict[str, Any]:
-    return {}
+    import random
+
+    rng = random.Random(20260624)  # 固定种子，dump 可重现
+    return {
+        "as_of": datetime.now(UTC),
+        "window": "1d",
+        "sectors": [
+            {
+                "name": name,
+                "change_pct": round(rng.uniform(-3.5, 4.0), 2),
+                "news_count_24h": rng.randint(2, 25),
+                "market_cap_weight": round(rng.uniform(0.02, 0.12), 3),
+                "top_symbols": [],  # M3b 接真实数据
+            }
+            for name in _SECTORS_14
+        ],
+    }
 
 
 def dump_reports_placeholder() -> dict[str, Any]:
-    return {}
+    premarket_md = """## 隔夜美股
+- 道指 +0.5%，纳斯达克 +1.2%
+- 半导体板块领涨，AMD +3%
+
+## 政策面
+- 央行降准 0.25%（M3a mock）
+
+## 今日关注
+- 关注券商板块走势
+- 半导体补涨机会
+"""
+    return {
+        "today": datetime.now(UTC).date().isoformat(),
+        "reports_by_kind": {
+            "premarket": {
+                "report_id": 1,
+                "kind": "premarket",
+                "status": "completed",
+                "markdown": premarket_md,
+                "generated_by": "agent:daily-report-writer (mock)",
+                "generated_at": datetime.now(UTC),
+            },
+            "morning": None,
+            "noon": None,
+            "afternoon": None,
+            "close": None,
+            "evening": None,
+        },
+    }
 
 
 def dump_params_handwritten() -> list[dict[str, Any]]:
-    return []
+    return [
+        {
+            "key": "sources.ths.enabled",
+            "value": True,
+            "scope": "global",
+            "description": "同花顺新闻源启用",
+            "sensitive": False,
+        },
+        {
+            "key": "sources.eastmoney.enabled",
+            "value": True,
+            "scope": "global",
+            "description": "东方财富启用",
+            "sensitive": False,
+        },
+        {
+            "key": "sources.yahoo.enabled",
+            "value": False,
+            "scope": "global",
+            "description": "Yahoo 财经启用",
+            "sensitive": False,
+        },
+        {
+            "key": "news.realtime_poll_seconds",
+            "value": 60,
+            "scope": "global",
+            "description": "新闻轮询间隔（秒）",
+            "sensitive": False,
+        },
+        {
+            "key": "news.batch_size",
+            "value": 50,
+            "scope": "global",
+            "description": "一次拉取上限",
+            "sensitive": False,
+        },
+        {
+            "key": "keywords.涨停.weight",
+            "value": 0.8,
+            "scope": "global",
+            "description": "关键词「涨停」权重",
+            "sensitive": False,
+        },
+        {
+            "key": "keywords.降准.weight",
+            "value": 1.0,
+            "scope": "global",
+            "description": "关键词「降准」权重",
+            "sensitive": False,
+        },
+        {
+            "key": "keywords.IPO.weight",
+            "value": 0.5,
+            "scope": "global",
+            "description": "关键词「IPO」权重",
+            "sensitive": False,
+        },
+        {
+            "key": "ai.provider",
+            "value": "agent",
+            "scope": "global",
+            "description": "AI provider: agent / anthropic / deepseek / rule",
+            "sensitive": False,
+        },
+        {
+            "key": "ai.timeout_seconds",
+            "value": 45,
+            "scope": "global",
+            "description": "单条 AI 分析超时",
+            "sensitive": False,
+        },
+        {
+            "key": "alerts.p0_min_importance",
+            "value": 5,
+            "scope": "global",
+            "description": "P0 告警最低重要性",
+            "sensitive": False,
+        },
+        {
+            "key": "alerts.p1_min_importance",
+            "value": 4,
+            "scope": "global",
+            "description": "P1 告警最低重要性",
+            "sensitive": False,
+        },
+        {
+            "key": "alerts.cooldown_minutes",
+            "value": 15,
+            "scope": "global",
+            "description": "同主题告警冷却时长",
+            "sensitive": False,
+        },
+        {
+            "key": "scheduler.market_data_minutes",
+            "value": 5,
+            "scope": "global",
+            "description": "行情快照刷新间隔",
+            "sensitive": False,
+        },
+        {
+            "key": "scheduler.report_premarket_cron",
+            "value": "0 8 * * 1-5",
+            "scope": "global",
+            "description": "盘前日报 cron",
+            "sensitive": False,
+        },
+    ]
 
 
 if __name__ == "__main__":

@@ -232,3 +232,58 @@ def test_dump_news_details_writes_per_id_files(seeded_session, tmp_path):
         data = json.loads(f.read_text(encoding="utf-8"))
         assert data["news_id"] == nid
         assert "related_news" in data  # 详情比列表多 related_news
+
+
+# ===== Task 7 测试 =====
+
+
+def test_dump_alerts_returns_list_with_news_join(seeded_session):
+    session, _ = seeded_session
+    result = dpf.dump_alerts(session)
+    assert isinstance(result, list)
+    assert len(result) >= 1
+    rec = result[0]
+    assert rec["level"] in ("P0", "P1", "P2", "P3")
+    assert rec["news_title"] == "央行降准 0.25%"
+    assert rec["news_source"] == "同花顺"
+    assert rec["primary_category"] == "宏观政策"
+
+
+def test_dump_sectors_placeholder_has_14_sectors():
+    result = dpf.dump_sectors_placeholder()
+    assert "sectors" in result
+    assert "as_of" in result
+    assert "window" in result
+    assert len(result["sectors"]) == 14, "应有 14 个 A 股主板块"
+    for sec in result["sectors"]:
+        assert "name" in sec
+        assert "change_pct" in sec
+        assert "news_count_24h" in sec
+
+
+def test_dump_reports_placeholder_has_6_kinds():
+    result = dpf.dump_reports_placeholder()
+    assert "today" in result
+    assert "reports_by_kind" in result
+    assert set(result["reports_by_kind"].keys()) == {
+        "premarket",
+        "morning",
+        "noon",
+        "afternoon",
+        "close",
+        "evening",
+    }
+    # 盘前应有 mock 内容，其余为 None
+    assert result["reports_by_kind"]["premarket"] is not None
+    assert result["reports_by_kind"]["premarket"]["markdown"].startswith("##")
+
+
+def test_dump_params_handwritten_has_15():
+    result = dpf.dump_params_handwritten()
+    assert isinstance(result, list)
+    assert len(result) >= 10, "至少 10 个示例参数"
+    for p in result:
+        assert "key" in p
+        assert "value" in p
+        assert "scope" in p
+        assert "description" in p
