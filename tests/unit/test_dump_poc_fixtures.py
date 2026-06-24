@@ -83,24 +83,24 @@ def seeded_session(tmp_engine):
 
         a1 = NewsAnalysis(
             news_id=n1.id,
-            primary_category=NewsCategory.MACRO,
+            primary_category=NewsCategory.MACRO_POLICY,
             tags=["货币政策"],
             related_sectors=[{"name": "券商", "weight": 0.9}],
             related_symbols=[{"code": "601318", "name": "中国平安"}],
-            sentiment=Sentiment.STRONG_BULL,
+            sentiment=Sentiment.STRONG_POSITIVE,
             importance_score=5,
             urgency_score=5,
             confidence_score=5,
             impact_horizon=ImpactHorizon.IMMEDIATE,
-            action_hint=ActionHint.WATCH,
+            action_hint=ActionHint.FOLLOW,
             ai_reasoning="降准利好金融板块",
             processed_by="agent:news-classifier-realtime",
         )
         a2 = NewsAnalysis(
             news_id=n2.id,
-            primary_category=NewsCategory.COMPANY,
+            primary_category=NewsCategory.COMPANY_ANNOUNCEMENT,
             tags=["业绩预告"],
-            sentiment=Sentiment.BULL,
+            sentiment=Sentiment.POSITIVE,
             importance_score=3,
             urgency_score=3,
             confidence_score=4,
@@ -165,3 +165,70 @@ def test_main_creates_empty_jsons(tmp_path, monkeypatch, tmp_engine):
     assert rc == 0
     for name in ("dashboard", "news", "alerts", "sectors", "reports", "params"):
         assert (out / f"{name}.json").exists(), f"{name}.json missing"
+
+
+# ===== Task 6 测试 =====
+
+
+def test_dump_news_returns_enriched_dto(seeded_session):
+    session, ids = seeded_session
+    result = dpf.dump_news(session, limit=10)
+    assert len(result) == 3, "should dump all 3 seeded news"
+    # 按 published_at 倒序：n3 最新
+    titles = [r["title"] for r in result]
+    assert titles[0] == "盘后新闻 3"
+    # 第一个 news (n1) 是降准，有完整 AI 分析
+    rec = next(r for r in result if r["title"] == "央行降准 0.25%")
+    assert rec["primary_category"] == "宏观政策"
+    assert rec["sentiment"] == "强利多"
+    assert rec["importance"] == 5
+    assert rec["urgency"] == 5
+    assert rec["confidence"] == 5
+    assert rec["impact_horizon"] == "即时"
+    assert rec["action_hint"] == "关注"
+    assert rec["alert_level"] == "P0"
+    assert rec["pushed"] is True
+    assert rec["related_sectors"] == [{"name": "券商", "weight": 0.9}]
+    assert rec["related_symbols"] == [{"code": "601318", "name": "中国平安"}]
+    assert rec["source"] == "同花顺"
+
+
+def test_dump_news_handles_no_analysis(seeded_session):
+    """没分析的 news（n3）应该字段为 None / [] 但不崩。"""
+    session, _ = seeded_session
+    result = dpf.dump_news(session, limit=10)
+    rec = next(r for r in result if r["title"] == "盘后新闻 3")
+    assert rec["primary_category"] is None
+    assert rec["sentiment"] is None
+    assert rec["importance"] is None
+    assert rec["alert_level"] is None
+    assert rec["related_sectors"] == []
+
+
+def test_dump_dashboard_aggregates(seeded_session):
+    session, _ = seeded_session
+    result = dpf.dump_dashboard(session, news_limit=10)
+    assert "market_status" in result
+    assert "latest_news" in result
+    assert "p0_alerts" in result
+    assert "p1_alerts" in result
+    assert "today_conclusion" in result
+    assert "today_reports" in result
+    # market_status.indexes 至少包含 sh000001 / sz399001
+    codes = [idx["code"] for idx in result["market_status"]["indexes"]]
+    assert "sh000001" in codes
+    assert "sz399001" in codes
+    # P0 alerts 至少有种子的 1 条
+    assert len(result["p0_alerts"]) >= 1
+
+
+def test_dump_news_details_writes_per_id_files(seeded_session, tmp_path):
+    session, ids = seeded_session
+    ids_written = dpf.dump_news_details(session, tmp_path, limit=2, pretty=False)
+    assert len(ids_written) == 2
+    for nid in ids_written:
+        f = tmp_path / f"news-detail-{nid}.json"
+        assert f.exists()
+        data = json.loads(f.read_text(encoding="utf-8"))
+        assert data["news_id"] == nid
+        assert "related_news" in data  # 详情比列表多 related_news

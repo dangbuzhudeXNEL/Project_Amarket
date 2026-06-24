@@ -99,21 +99,215 @@ def main() -> int:
     return 0
 
 
-# ---- 各 dump 函数（骨架，下个 task 填充）---- #
+# ---- 各 dump 函数 ---- #
+
+
+def _news_to_card(
+    session: Session,
+    news: NewsItem,
+    source: NewsSource,
+    analysis: NewsAnalysis | None,
+    alert: Alert | None,
+) -> dict[str, Any]:
+    """NewsItem + JOIN → 富 DTO（超过 NewsCardDTO，含 spec §10.3 全部字段）。"""
+    return {
+        "news_id": news.id,
+        "title": news.title,
+        "summary": news.summary,
+        "source": source.name,
+        "source_code": source.code,
+        "source_priority": source.priority.value,
+        "url": news.url,
+        "published_at": news.published_at,
+        "fetched_at": news.fetched_at,
+        "primary_category": analysis.primary_category.value if analysis else None,
+        "tags": analysis.tags if analysis else [],
+        "sentiment": analysis.sentiment.value if analysis else None,
+        "importance": analysis.importance_score if analysis else None,
+        "urgency": analysis.urgency_score if analysis else None,
+        "confidence": analysis.confidence_score if analysis else None,
+        "impact_horizon": analysis.impact_horizon.value if analysis else None,
+        "action_hint": analysis.action_hint.value if analysis else None,
+        "related_sectors": analysis.related_sectors if analysis else [],
+        "related_symbols": analysis.related_symbols if analysis else [],
+        "alert_level": alert.level.value if alert else None,
+        "pushed": (alert.status == "pushed") if alert else False,
+        "processed_by": analysis.processed_by if analysis else None,
+    }
+
+
+def _highest_alert(alerts: list[Alert]) -> Alert | None:
+    if not alerts:
+        return None
+    priority = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
+    return sorted(alerts, key=lambda a: priority.get(a.level.value, 99))[0]
+
+
+def _pick_best_analysis(analyses: list[NewsAnalysis]) -> NewsAnalysis | None:
+    """优先取 agent:* / sdk:* 分析，无则 rule，最新优先。"""
+    if not analyses:
+        return None
+    return sorted(
+        analyses,
+        key=lambda a: (
+            0 if a.processed_by.startswith(("agent:", "sdk:")) else 1,
+            -(a.id or 0),
+        ),
+    )[0]
+
+
+def _alert_to_dict(session: Session, alert: Alert) -> dict[str, Any]:
+    title = source_name = category = None
+    if alert.news_id is not None:
+        news = session.get(NewsItem, alert.news_id)
+        if news is not None:
+            title = news.title
+            src = session.get(NewsSource, news.source_id)
+            if src is not None:
+                source_name = src.name
+    if alert.analysis_id is not None:
+        ana = session.get(NewsAnalysis, alert.analysis_id)
+        if ana is not None:
+            category = ana.primary_category.value
+    return {
+        "alert_id": alert.id,
+        "news_id": alert.news_id,
+        "level": alert.level.value,
+        "trigger_reason": alert.trigger_reason,
+        "analysis_id": alert.analysis_id,
+        "status": alert.status,
+        "created_at": alert.created_at,
+        "pushed_at": alert.pushed_at,
+        "news_title": title,
+        "news_source": source_name,
+        "primary_category": category,
+    }
 
 
 def dump_dashboard(session: Session, *, news_limit: int) -> dict[str, Any]:
-    return {}
+    market_repo = MarketSnapshotRepo(session)
+    alert_repo = AlertRepo(session)
+
+    # market_status — 拿 11 个 A 股指数最新
+    latest = market_repo.latest_for_codes(list(MAJOR_A_SHARE_INDEXES.keys()))
+    indexes = []
+    for code, name in MAJOR_A_SHARE_INDEXES.items():
+        snap = latest.get(code)
+        if snap is None:
+            continue
+        extra = snap.extra_json if isinstance(snap.extra_json, dict) else {}
+        indexes.append(
+            {
+                "code": code,
+                "name": snap.name or name,
+                "price": snap.price,
+                "change_pct": snap.change_pct,
+                "change_abs": snap.change_abs,
+                "prev_close": extra.get("prev_close"),
+                "volume": snap.volume,
+                "turnover": snap.turnover,
+                "source": str(extra.get("source", "akshare")),
+                "fetched_at": snap.ts,
+            }
+        )
+
+    # latest_news
+    latest_news = dump_news(session, limit=news_limit)
+
+    # P0 / P1 alerts
+    recent = alert_repo.list_recent(limit=200)
+    p0_list = [_alert_to_dict(session, a) for a in recent if a.level.value == "P0"][:10]
+    p1_list = [_alert_to_dict(session, a) for a in recent if a.level.value == "P1"][:10]
+
+    return {
+        "as_of": datetime.now(UTC),
+        "market_status": {
+            "indexes": indexes,
+            "fx": [],
+            "commodities": [],
+            "refreshed_at": datetime.now(UTC),
+        },
+        "today_conclusion": "（M3a 占位 — M4 接盘前日报）",
+        "latest_news": latest_news,
+        "p0_alerts": p0_list,
+        "p1_alerts": p1_list,
+        "top_sectors": [],  # M3b 接 SectorTrendService
+        "top_movers": [],  # M3b 接
+        "today_reports": {  # M4 真填
+            "premarket": None,
+            "morning": None,
+            "noon": None,
+            "afternoon": None,
+            "close": None,
+            "evening": None,
+        },
+    }
 
 
 def dump_news(session: Session, *, limit: int) -> list[dict[str, Any]]:
-    return []
+    repo = NewsRepo(session)
+    analysis_repo = NewsAnalysisRepo(session)
+    alert_repo = AlertRepo(session)
+
+    rows = repo.list_recent(limit=limit)
+    result: list[dict[str, Any]] = []
+    for news, src in rows:
+        assert news.id is not None
+        analyses = analysis_repo.list_for_news(news_id=news.id)
+        ana = _pick_best_analysis(analyses)
+        alerts = alert_repo.list_for_news(news_id=news.id, limit=10)
+        alt = _highest_alert(alerts)
+        result.append(_news_to_card(session, news, src, ana, alt))
+    return result
 
 
 def dump_news_details(
     session: Session, out: Path, *, limit: int, pretty: bool
 ) -> list[int]:
-    return []
+    """Dump top N news 的详情（含 related_news 同事件其他 news）到独立文件。"""
+    from sqlmodel import select
+
+    repo = NewsRepo(session)
+    analysis_repo = NewsAnalysisRepo(session)
+    alert_repo = AlertRepo(session)
+
+    rows = repo.list_recent(limit=limit)
+    written: list[int] = []
+    for news, src in rows:
+        assert news.id is not None
+        analyses = analysis_repo.list_for_news(news_id=news.id)
+        ana = _pick_best_analysis(analyses)
+        alerts = alert_repo.list_for_news(news_id=news.id, limit=10)
+        alt = _highest_alert(alerts)
+        card = _news_to_card(session, news, src, ana, alt)
+
+        related: list[dict[str, Any]] = []
+        if news.event_id is not None:
+            stmt = (
+                select(NewsItem, NewsSource)
+                .join(NewsSource, NewsItem.source_id == NewsSource.id)  # type: ignore[arg-type]
+                .where(NewsItem.event_id == news.event_id)
+                .where(NewsItem.id != news.id)
+                .limit(10)
+            )
+            for r_news, r_src in session.exec(stmt):
+                related.append(
+                    {
+                        "news_id": r_news.id,
+                        "title": r_news.title,
+                        "source": r_src.name,
+                        "published_at": r_news.published_at,
+                        "url": r_news.url,
+                    }
+                )
+        card["related_news"] = related
+        card["ai_reasoning"] = ana.ai_reasoning if ana else None
+        card["risk_notes"] = ana.risk_notes if ana else None
+        card["content"] = news.content
+
+        write_json(out / f"news-detail-{news.id}.json", card, pretty=pretty)
+        written.append(news.id)
+    return written
 
 
 def dump_alerts(session: Session) -> list[dict[str, Any]]:
