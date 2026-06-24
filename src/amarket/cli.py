@@ -442,7 +442,7 @@ def analyze_news(
 
         alert_result = None
         if with_alerts and result.analyses:
-            alert_svc = AlertService(session)
+            alert_svc = AlertService.from_config(session)
             alert_result = alert_svc.process_analyses(result.analyses)
 
     typer.echo("")

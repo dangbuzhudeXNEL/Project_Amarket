@@ -263,6 +263,61 @@ async def test_analyze_batch_skip_existing(session: Session) -> None:
     assert second.ai_success == 0
 
 
+async def test_analyze_batch_skip_provider_aware_rule_then_ai(session: Session) -> None:
+    """Regression P1-1：rule 跑过的不该锁死 AI 路径。
+
+    场景：用户先 --no-ai 跑 rule，后配 API key 想升级到 AI。AI 路径应该
+    照常分析（不被 rule 行错跳）。
+    """
+    src_id = _seed_source(session)
+    items = [
+        _insert_item(session, src_id, msg_id=str(i), title=f"新闻 {i} 央行降准") for i in range(3)
+    ]
+
+    # Step 1: 先用规则路径（无 AI）跑一遍
+    svc_rule = _build_service(session, ai_provider=None)
+    first = await svc_rule.analyze_batch(items, concurrency=2)
+    assert first.rule_fallback == 3
+
+    # Step 2: 切到 AI 路径重跑（默认 skip_existing=True）— 不应被 rule 行锁死
+    svc_ai = _build_service(session, ai_provider=_FakeSuccessAIProvider())
+    second = await svc_ai.analyze_batch(items, concurrency=2)
+    assert second.ai_success == 3  # AI 真的跑了
+    assert second.skipped == 0
+
+
+async def test_analyze_batch_skip_provider_aware_ai_then_rule(session: Session) -> None:
+    """Regression P1-1（反方向）：AI 跑过的不该锁死 rule 重分析。"""
+    src_id = _seed_source(session)
+    items = [_insert_item(session, src_id, msg_id="1", title="新闻 央行降准")]
+
+    # AI 先跑
+    svc_ai = _build_service(session, ai_provider=_FakeSuccessAIProvider())
+    first = await svc_ai.analyze_batch(items, concurrency=1)
+    assert first.ai_success == 1
+
+    # 切 rule 路径重跑 — 应正常跑（rule 行还没存在）
+    svc_rule = _build_service(session, ai_provider=None)
+    second = await svc_rule.analyze_batch(items, concurrency=1)
+    assert second.rule_fallback == 1
+    assert second.skipped == 0
+
+
+async def test_analyze_batch_skip_same_path_twice(session: Session) -> None:
+    """同 provider 路径重跑应正确跳过。"""
+    src_id = _seed_source(session)
+    items = [_insert_item(session, src_id, msg_id="1", title="新闻 央行降准")]
+
+    svc = _build_service(session, ai_provider=_FakeSuccessAIProvider())
+    first = await svc.analyze_batch(items, concurrency=1)
+    assert first.ai_success == 1
+
+    # 同样 AI 配置重跑 — 该跳过
+    second = await svc.analyze_batch(items, concurrency=1)
+    assert second.skipped == 1
+    assert second.ai_success == 0
+
+
 async def test_analyze_batch_mixed_failure_fallback(session: Session) -> None:
     """AI 失败的 item 自动走规则路径，统计为 rule_fallback。"""
     src_id = _seed_source(session)
@@ -283,6 +338,37 @@ async def test_analyze_batch_empty_input(session: Session) -> None:
     result = await svc.analyze_batch([], concurrency=2)
     assert result.total == 0
     assert result.analyses == []
+
+
+async def test_analyze_batch_each_task_uses_independent_session(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression P1-5：analyze_batch 内每个 task 应创建独立 Session。
+
+    防止未来加 async DB driver / await injection 时的 race。
+    """
+    from amarket.services.news import analysis as analysis_module
+
+    src_id = _seed_source(session)
+    items = [_insert_item(session, src_id, msg_id=str(i), title=f"新闻 {i}") for i in range(3)]
+
+    # 计数 Session 构造调用
+    session_count = 0
+    original_session_cls = analysis_module.Session
+
+    def counting_session(*args: Any, **kwargs: Any) -> Session:
+        nonlocal session_count
+        session_count += 1
+        return original_session_cls(*args, **kwargs)
+
+    monkeypatch.setattr(analysis_module, "Session", counting_session)
+
+    svc = _build_service(session, ai_provider=_FakeSuccessAIProvider())
+    result = await svc.analyze_batch(items, concurrency=2)
+
+    assert result.ai_success == 3
+    # 至少 3 次 Session 构造（每 task 一个独立 session）
+    assert session_count >= 3
 
 
 # --------------------------------------------------------------------------- #
