@@ -3,45 +3,92 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Amarket — 日报（PR2 即将）</title>
+  <title>Amarket — 6 时段日报</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="assets/css/theme-okx.css">
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="assets/js/shared.js"></script>
   <script src="assets/js/nav.js"></script>
+  <script defer src="assets/js/pages/reports.js"></script>
+  <style>
+    /* Markdown 渲染样式（仅 reports 页用，inline 保证不污染主题）*/
+    .md-render h1 { font-size: 24px; font-weight: 700; margin: 28px 0 14px; color: var(--text-primary); border-bottom: 1px solid var(--border-default); padding-bottom: 8px; }
+    .md-render h2 { font-size: 19px; font-weight: 600; margin: 24px 0 12px; color: var(--text-primary); border-left: 3px solid var(--accent); padding-left: 12px; }
+    .md-render h3 { font-size: 16px; font-weight: 600; margin: 20px 0 10px; color: var(--accent); }
+    .md-render p { margin: 8px 0; font-size: 15px; line-height: 1.7; color: var(--text-primary); }
+    .md-render ul, .md-render ol { padding-left: 24px; margin: 8px 0; }
+    .md-render li { margin: 4px 0; font-size: 14px; color: var(--text-primary); }
+    .md-render strong { color: var(--text-primary); font-weight: 600; }
+    .md-render em { color: var(--accent); font-style: normal; font-weight: 500; }
+    .md-render code { background: var(--bg-hover); color: var(--text-yellow, #fcff00); padding: 2px 6px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+    .md-render pre { background: var(--bg-base); padding: 16px; border-radius: 8px; border: 1px solid var(--border-default); overflow-x: auto; }
+    .md-render blockquote { border-left: 3px solid var(--border-strong); padding: 6px 16px; margin: 12px 0; color: var(--text-secondary); background: var(--bg-card-hover); border-radius: 0 6px 6px 0; }
+    .md-render hr { border: none; height: 1px; background: var(--border-default); margin: 24px 0; }
+    .md-render a { color: var(--accent); }
+    .md-render a:hover { color: var(--accent-hover); text-decoration: underline; }
+  </style>
 </head>
 <body>
   <div id="topbar-mount"></div>
 
-  <main class="page-shell">
-    <div class="coming-soon">
-      <div class="cs-badge">PR2 · 即将到来</div>
-      <h1>6 时段日报展示</h1>
-      <p>每天 6 个时段自动生成的 A 股新闻日报：<strong>盘前 / 早盘 / 午间 / 尾盘 / 收盘 / 晚间</strong>。Markdown 渲染（marked.js CDN），完整保留 AI 写手生成的格式与板块分析。</p>
+  <main class="page-shell" x-data="reportsPage()" x-init="init()">
 
-      <div class="cs-features">
-        <div class="cs-feature">
-          <div class="cs-feature-title">📅 时段切换 Tab</div>
-          <div class="cs-feature-desc">6 个时段一键切换；未生成的时段灰禁用 + "等待 M4 调度"</div>
+    <!-- 顶部：日期 + 6 时段 tab -->
+    <div class="card mb-4" style="padding:14px 20px">
+      <div class="flex justify-between items-center mb-3">
+        <div>
+          <div class="card-title with-accent" style="margin:0">6 时段日报</div>
+          <div class="text-muted" style="font-size:12px;margin-top:2px" x-text="`日期：${today} · 仅当天可查（M4 后开历史）`"></div>
         </div>
-        <div class="cs-feature">
-          <div class="cs-feature-title">📝 Markdown 渲染</div>
-          <div class="cs-feature-desc">marked.js + 自定义样式，匹配 OKX 暗色风</div>
-        </div>
-        <div class="cs-feature">
-          <div class="cs-feature-title">🗓 历史日报</div>
-          <div class="cs-feature-desc">日期选择器查看历史；M3a 仅当天 mock，M4 真填后翻历史</div>
-        </div>
-        <div class="cs-feature">
-          <div class="cs-feature-title">🔄 重新推送</div>
-          <div class="cs-feature-desc">M5 加 "重新推送" 按钮，触发企微/飞书重发</div>
+        <div class="text-muted" style="font-size:12px">
+          <span x-text="completedCount + ' / 6 已生成'"></span>
         </div>
       </div>
 
-      <p class="mt-6 text-muted" style="font-size:13px">先回 <a href="index.html">首页</a> 看 6 时段日报入口（首页底部 ⑨ 区域，"盘前" 已有 mock）</p>
+      <div class="flex gap-2" style="flex-wrap:wrap">
+        <template x-for="kind in kindOrder" :key="kind">
+          <button
+            @click="reportsByKind[kind] && (current = kind)"
+            class="btn"
+            :disabled="!reportsByKind[kind]"
+            :style="current === kind ? 'background:var(--accent);color:var(--bg-base);border-color:var(--accent);font-weight:700;box-shadow:0 4px 12px var(--accent-glow)' : (!reportsByKind[kind] ? 'opacity:0.4;cursor:not-allowed' : '')">
+            <span x-text="kindLabels[kind]"></span>
+            <span x-show="reportsByKind[kind]" style="margin-left:6px;color:var(--up)">✓</span>
+            <span x-show="!reportsByKind[kind]" style="margin-left:6px" class="text-muted">—</span>
+          </button>
+        </template>
+      </div>
     </div>
+
+    <!-- 当前日报展示 -->
+    <div x-show="currentReport" class="card card-elevated" style="padding:28px 36px">
+      <div class="flex justify-between items-center mb-4" style="padding-bottom:16px;border-bottom:1px solid var(--border-default)">
+        <div>
+          <div style="font-size:22px;font-weight:700" x-text="`${kindLabels[current]}日报`"></div>
+          <div class="text-muted mt-1" style="font-size:13px">
+            <span x-text="`生成于 ${fmt.dateTime(currentReport?.generated_at)}`"></span>
+            <span class="ml-2" style="color:var(--accent)" x-text="`· ${currentReport?.generated_by}`"></span>
+          </div>
+        </div>
+        <div class="flex gap-2">
+          <button class="btn" disabled style="opacity:0.5;cursor:not-allowed" title="M5 才解锁">↻ 重新生成</button>
+          <button class="btn" disabled style="opacity:0.5;cursor:not-allowed" title="M5 才解锁">→ 推送</button>
+        </div>
+      </div>
+
+      <div class="md-render" x-html="renderedMarkdown"></div>
+    </div>
+
+    <div x-show="!currentReport && current" class="card" style="padding:48px 24px;text-align:center">
+      <div style="font-size:48px;margin-bottom:16px;opacity:0.3">⏳</div>
+      <div style="font-size:18px;font-weight:600;margin-bottom:8px" x-text="`${kindLabels[current]} 日报未生成`"></div>
+      <div class="text-muted" style="font-size:13px">等待 M4 上线 APScheduler 调度后自动生成 · 你也可以手工跑 <code>uv run amarket push premarket</code></div>
+    </div>
+
   </main>
 </body>
 </html>

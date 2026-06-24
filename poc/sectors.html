@@ -3,44 +3,114 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Amarket — 板块（PR2 即将）</title>
+  <title>Amarket — 板块热力图</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="assets/css/theme-okx.css">
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
   <script src="assets/js/shared.js"></script>
   <script src="assets/js/nav.js"></script>
+  <script defer src="assets/js/pages/sectors.js"></script>
 </head>
 <body>
   <div id="topbar-mount"></div>
 
-  <main class="page-shell">
-    <div class="coming-soon">
-      <div class="cs-badge">PR2 · 即将到来</div>
-      <h1>板块热力图 · 完整版</h1>
-      <p>14 个 A 股主板块全屏 ECharts treemap，按 <strong>涨跌幅</strong> 或 <strong>新闻热度</strong> 切换维度。点击板块格子下方联动显示该板块最近新闻。</p>
+  <main class="page-shell" x-data="sectorsPage()" x-init="init()">
 
-      <div class="cs-features">
-        <div class="cs-feature">
-          <div class="cs-feature-title">📊 全屏 Treemap</div>
-          <div class="cs-feature-desc">14 板块按市值权重展示，颜色映射 -3% 红 → 0 灰 → +3% 绿</div>
-        </div>
-        <div class="cs-feature">
-          <div class="cs-feature-title">🔀 维度切换</div>
-          <div class="cs-feature-desc">涨跌幅 vs 新闻热度 vs 资金流向（M3b 接 SectorTrendService）</div>
-        </div>
-        <div class="cs-feature">
-          <div class="cs-feature-title">⏱ 时间窗口</div>
-          <div class="cs-feature-desc">1h / 4h / 1d 切换；M3a 数据不分窗口（占位）</div>
-        </div>
-        <div class="cs-feature">
-          <div class="cs-feature-title">📰 联动新闻</div>
-          <div class="cs-feature-desc">点板块格子 → 下方加载该板块最近 20 条新闻</div>
-        </div>
+    <!-- 顶部控制条 -->
+    <div class="card mb-6 flex justify-between items-center" style="padding:14px 20px">
+      <div>
+        <div class="card-title with-accent" style="margin:0">板块热力图</div>
+        <div class="text-muted" style="font-size:12px;margin-top:2px" x-text="`14 板块 · ${dimensionLabel} · ${windowLabel}`"></div>
       </div>
+      <div class="flex gap-2 items-center">
+        <span class="text-muted" style="font-size:11px;text-transform:uppercase;letter-spacing:1.5px">时间窗口</span>
+        <div class="flex" style="gap:2px">
+          <template x-for="w in windows" :key="w.key">
+            <button @click="window = w.key" class="btn" :style="window === w.key ? 'background:var(--accent);color:var(--bg-base);border-color:var(--accent)' : ''" x-text="w.label"></button>
+          </template>
+        </div>
+        <span class="text-muted ml-2" style="font-size:11px;text-transform:uppercase;letter-spacing:1.5px">维度</span>
+        <select x-model="dimension">
+          <option value="change">涨跌幅</option>
+          <option value="news">新闻热度</option>
+          <option value="weight">市值权重</option>
+        </select>
+      </div>
+    </div>
 
-      <p class="mt-6 text-muted" style="font-size:13px">先回 <a href="index.html">首页</a> 看 mini 版热力图（首页右侧 ⑤ 区域）</p>
+    <!-- 主 treemap -->
+    <div class="card mb-4" style="padding:0;overflow:hidden">
+      <div id="big-heatmap" style="width:100%;height:62vh;min-height:500px"></div>
+    </div>
+
+    <!-- 选中板块详情 + 联动新闻 -->
+    <div class="grid-cols-12">
+
+      <section class="col-span-4 card">
+        <div class="card-title with-accent">板块数据</div>
+        <div x-show="selectedSector">
+          <div style="font-size:24px;font-weight:700;margin-bottom:14px" x-text="selectedSector?.name"></div>
+
+          <div class="flex justify-between mb-3">
+            <span class="text-muted">涨跌幅</span>
+            <span class="pill" :class="(selectedSector?.change_pct ?? 0) >= 0 ? 'pill-up' : 'pill-down'" x-text="fmt.pctText(selectedSector?.change_pct)"></span>
+          </div>
+
+          <div class="flex justify-between mb-3">
+            <span class="text-muted">24h 新闻数</span>
+            <span class="num" style="font-size:18px;font-weight:600" x-text="selectedSector?.news_count_24h"></span>
+          </div>
+
+          <div class="flex justify-between mb-3">
+            <span class="text-muted">市值权重</span>
+            <span class="num" x-text="((selectedSector?.market_cap_weight ?? 0) * 100).toFixed(1) + '%'"></span>
+          </div>
+
+          <div class="mt-4 p-3" style="background:var(--bg-hover);border-radius:8px;border-left:3px solid var(--accent)">
+            <div class="text-muted mb-2" style="font-size:11px;text-transform:uppercase;letter-spacing:1.5px">代表标的</div>
+            <div class="text-muted">M3b 接 SectorTrendService 后填</div>
+          </div>
+        </div>
+        <div x-show="!selectedSector" class="text-muted p-3" style="text-align:center">
+          <div style="font-size:48px;margin-bottom:12px;opacity:0.4">👆</div>
+          <div>点上方板块格子查看详情</div>
+        </div>
+      </section>
+
+      <section class="col-span-8 card">
+        <div class="card-title with-accent flex justify-between items-center">
+          <span x-text="selectedSector ? `${selectedSector.name} · 相关新闻` : '相关新闻'"></span>
+          <span class="text-muted" style="font-size:11px" x-text="`${relatedNews.length} 条`"></span>
+        </div>
+        <div class="scroll-area" style="max-height:560px">
+          <template x-for="item in relatedNews" :key="item.news_id">
+            <a :href="`news-detail.html?id=${item.news_id}`" class="news-row">
+              <div class="nr-meta">
+                <span class="num" x-text="fmt.timeAgo(item.published_at)"></span>
+                <div class="flex gap-2 items-center">
+                  <span x-show="item.alert_level" :class="fmt.alertClass(item.alert_level)" x-text="item.alert_level"></span>
+                  <span x-text="item.source"></span>
+                </div>
+              </div>
+              <div class="nr-title" x-text="item.title"></div>
+              <div class="nr-tags">
+                <span class="tag" x-show="item.primary_category" x-text="item.primary_category"></span>
+                <span x-show="item.sentiment" :class="fmt.sentClass(item.sentiment)" x-text="item.sentiment"></span>
+                <span x-show="item.importance" class="stars" x-text="fmt.stars(item.importance)"></span>
+              </div>
+            </a>
+          </template>
+          <div x-show="!relatedNews.length" class="p-6 text-muted" style="text-align:center">
+            <span x-show="!selectedSector">先点上方板块</span>
+            <span x-show="selectedSector">该板块暂无关联新闻</span>
+          </div>
+        </div>
+      </section>
+
     </div>
   </main>
 </body>
