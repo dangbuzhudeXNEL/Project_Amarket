@@ -14,12 +14,13 @@
 
 ## 当前状态
 
-🟢 **Phase 1 实施中（M0/M0+/M1/M2 已完成，准备 M3 静态 POC 页面）**
+🟢 **Phase 1 实施中（M0/M0+/M1/M2/M3a 已完成，准备 M3b 看板 API 补齐）**
 
 - 当前 Spec：[Spec #1 v3 — A 股实时新闻分析与行情看板（小组联合版）](docs/superpowers/specs/2026-06-19-spec1-v3-merged.md)
 - 状态快照：[`docs/PROJECT_STATE.md`](docs/PROJECT_STATE.md)
-- 进度：4/7 milestones 完成，端到端 pipeline（采集 → 去重 → 分类 → AI 分析 → P0-P3 告警 → API → Dashboard）已跑通真实数据
-- 测试：207 tests / 87.95% coverage / CI 全绿
+- 进度：5/7 milestones 完成（71%），端到端 pipeline（采集 → 去重 → 分类 → AI 分析 → P0-P3 告警 → API → POC 6 页看板）已跑通真实数据
+- 测试：216 tests / 87.95% coverage / CI 全绿
+- POC 看板：5 个 OKX 暗色金融风页面（dashboard / news / news-detail / sectors / reports）+ 1 个赛博朋克参数控制台 — `cd poc && python -m http.server 8090`
 
 ## 路线图（Phase 1 + Phase 2 + 后续 Spec）
 
@@ -27,7 +28,7 @@
 
 | Phase | 范围 | 状态 |
 |-------|------|------|
-| **Phase 1** | 三大模块（新闻 / 交易看板 / 参数配置）+ 6 时段日报 + P0-P3 告警 + 看板 API | 🟢 **M0/M0+/M1/M2 完成（57%），准备 M3** |
+| **Phase 1** | 三大模块（新闻 / 交易看板 / 参数配置）+ 6 时段日报 + P0-P3 告警 + 看板 API | 🟢 **M0/M0+/M1/M2/M3a 完成（71%），准备 M3b** |
 | **Phase 2** | Brainmaster AI 集成（subprocess + claude CLI agent）、信号交易（不下单） | 📋 待 Phase 1 完成 |
 
 ### 后续 Spec
@@ -48,7 +49,7 @@
 - 📅 **6 时段自动日报**：盘前 / 早盘 / 午间 / 尾盘 / 收盘 / 晚间
 - 🚨 **P0-P3 告警**：黑天鹅强提醒 → 即时推 → 汇总推 → 仅入库
 - 📬 **多渠道推送**：企业微信 + 飞书 + 邮件
-- 🎨 **看板 POC**：静态 HTML（首页 / 新闻流 / 详情页 / 板块热力图 / 日报页）+ Streamlit 管理面板
+- 🎨 **看板 POC**：6 个静态 HTML（首页 / 新闻流 / 详情页 / 板块热力图 / 日报页 + ⚡ 赛博朋克参数控制台）+ Streamlit 管理面板
 - ⚙️ **参数配置**：版本化 / 回滚 / 权限矩阵 / 审计日志
 
 ## 技术栈
@@ -99,7 +100,7 @@ Project_Amarket/
 │   ├── adapters/            # 外部依赖适配器
 │   ├── repositories/        # 数据访问层
 │   └── ...
-├── poc/                     # 静态 HTML POC（M3 后创建）
+├── poc/                     # 静态 HTML POC（M3a 已完成，6 页 + 双主题）
 ├── tests/                   # 测试代码（M0 后创建）
 └── scripts/watchdog/        # 外部 watchdog 脚本
 ```
