@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Amarket — 新闻详情</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="assets/css/theme-okx.css">
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="assets/js/shared.js"></script>
+  <script src="assets/js/nav.js"></script>
+  <script defer src="assets/js/pages/news-detail.js"></script>
+</head>
+<body data-theme="okx">
+  <div id="topbar-mount"></div>
+
+  <main class="page-shell" x-data="newsDetailPage()" x-init="init()" style="max-width:960px">
+
+    <!-- 错误状态：缺 id 或 id 不存在 -->
+    <div x-show="error" class="banner banner-error">
+      <span x-text="error"></span>
+      <a href="news.html" class="ml-2">← 返回新闻流</a>
+    </div>
+
+    <div x-show="!error && news">
+
+      <a href="news.html" class="text-secondary" style="display:inline-block;margin-bottom:16px">← 返回新闻流</a>
+
+      <!-- 标题区 -->
+      <section class="card mb-4">
+        <h1 style="font-size:24px;font-weight:600;margin:0 0 12px" x-text="news.title"></h1>
+        <div class="flex gap-4 items-center mb-2" style="font-size:13px">
+          <span class="num text-muted" x-text="fmt.dateTime(news.published_at)"></span>
+          <span class="text-muted" x-text="news.source"></span>
+          <a x-show="news.url" :href="news.url" target="_blank" rel="noopener" class="text-secondary">原文链接 →</a>
+        </div>
+        <div class="flex gap-1" x-show="news.primary_category || news.tags?.length">
+          <span class="tag" x-show="news.primary_category" x-text="news.primary_category"></span>
+          <template x-for="t in (news.tags || [])" :key="t">
+            <span class="tag" x-text="t"></span>
+          </template>
+        </div>
+      </section>
+
+      <!-- 摘要 -->
+      <section class="card mb-4" x-show="news.summary">
+        <div class="card-title">摘要</div>
+        <p x-text="news.summary"></p>
+      </section>
+
+      <!-- 正文 -->
+      <section class="card mb-4" x-show="news.content">
+        <div class="card-title">正文</div>
+        <pre style="white-space:pre-wrap;font-family:inherit" x-text="news.content"></pre>
+      </section>
+
+      <!-- AI 分析 -->
+      <section class="card mb-4" x-show="news.processed_by">
+        <div class="card-title">AI 分析 — <span class="text-muted" x-text="news.processed_by"></span></div>
+
+        <div class="grid-cols-12 mb-4">
+          <div class="col-span-4">
+            <div class="text-muted" style="font-size:11px">重要性</div>
+            <div class="stars" style="font-size:18px" x-text="fmt.stars(news.importance)"></div>
+          </div>
+          <div class="col-span-4">
+            <div class="text-muted" style="font-size:11px">紧急度</div>
+            <div class="num" style="font-size:18px" x-text="news.urgency || '-'"></div>
+          </div>
+          <div class="col-span-4">
+            <div class="text-muted" style="font-size:11px">置信度</div>
+            <div class="num" style="font-size:18px" x-text="news.confidence || '-'"></div>
+          </div>
+          <div class="col-span-4 mt-2">
+            <div class="text-muted" style="font-size:11px">情绪</div>
+            <div :class="fmt.sentClass(news.sentiment)" style="font-size:16px" x-text="news.sentiment || '-'"></div>
+          </div>
+          <div class="col-span-4 mt-2">
+            <div class="text-muted" style="font-size:11px">影响时长</div>
+            <div x-text="news.impact_horizon || '-'"></div>
+          </div>
+          <div class="col-span-4 mt-2">
+            <div class="text-muted" style="font-size:11px">操作建议</div>
+            <div x-text="news.action_hint || '-'"></div>
+          </div>
+        </div>
+
+        <div x-show="news.related_sectors?.length" class="mb-2">
+          <div class="text-muted" style="font-size:11px">影响板块</div>
+          <div class="flex gap-2 mt-2" style="flex-wrap:wrap">
+            <template x-for="sec in news.related_sectors" :key="sec.name">
+              <span class="tag" x-text="`${sec.name} ${(sec.weight*100).toFixed(0)}%`"></span>
+            </template>
+          </div>
+        </div>
+
+        <div x-show="news.related_symbols?.length" class="mb-2">
+          <div class="text-muted" style="font-size:11px">关联标的</div>
+          <div class="flex gap-2 mt-2" style="flex-wrap:wrap">
+            <template x-for="sym in news.related_symbols" :key="sym.code">
+              <span class="tag num" x-text="`${sym.code} ${sym.name}`"></span>
+            </template>
+          </div>
+        </div>
+
+        <div x-show="news.alert_level" class="mt-4">
+          <span :class="fmt.alertClass(news.alert_level)" x-text="news.alert_level"></span>
+          <span x-show="news.pushed" class="text-up ml-2">已推送 ✓</span>
+        </div>
+
+        <div x-show="news.ai_reasoning" class="mt-4">
+          <div class="text-muted" style="font-size:11px;margin-bottom:4px">分析理由</div>
+          <p x-text="news.ai_reasoning"></p>
+        </div>
+
+        <div x-show="news.risk_notes" class="mt-4">
+          <div class="text-muted" style="font-size:11px;margin-bottom:4px">风险提示</div>
+          <p x-text="news.risk_notes"></p>
+        </div>
+      </section>
+
+      <!-- 相关新闻 -->
+      <section class="card mb-4" x-show="news.related_news?.length">
+        <div class="card-title">相关新闻（同事件）</div>
+        <template x-for="rel in news.related_news" :key="rel.news_id">
+          <a :href="`news-detail.html?id=${rel.news_id}`" style="display:block;padding:8px 0;border-bottom:1px solid var(--border-default)">
+            <div class="flex gap-2 items-center">
+              <span class="num text-muted" style="font-size:11px" x-text="fmt.dateTime(rel.published_at)"></span>
+              <span class="text-muted" style="font-size:11px" x-text="rel.source"></span>
+            </div>
+            <div x-text="rel.title"></div>
+          </a>
+        </template>
+      </section>
+
+    </div>
+  </main>
+</body>
+</html>
