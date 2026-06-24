@@ -1,47 +1,82 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-theme="okx">
+<html lang="zh-CN" data-theme="cyberpunk">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Amarket — 参数（PR2 赛博朋克即将）</title>
+  <title>⚡ AMARKET_CONSOLE</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="assets/css/theme-okx.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=JetBrains+Mono:wght@400;500;700&family=Fira+Code:wght@400;500;700&display=swap">
+  <link rel="stylesheet" href="assets/css/theme-cyberpunk.css">
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <script src="assets/js/shared.js"></script>
-  <script src="assets/js/nav.js"></script>
+  <script defer src="assets/js/pages/params.js"></script>
 </head>
 <body>
-  <div id="topbar-mount"></div>
 
-  <main class="page-shell">
-    <div class="coming-soon">
-      <div class="cs-badge" style="background:rgba(255,0,110,0.12);color:#ff006e;border-color:rgba(255,0,110,0.3)">PR2 · 赛博朋克实验</div>
-      <h1 style="background:linear-gradient(135deg,#fff 0%,#ff006e 50%,#00f5ff 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">⚡ A_M_A_R_K_E_T_CONSOLE</h1>
-      <p>参数配置面板 — 用 <strong>赛博朋克</strong> 风格做实验区。霓虹 cyan + magenta + 等宽字体 + 辉光 + 扫描线，与主站 OKX 暗色形成"管理后台 / hacker 区"对比。</p>
+  <!-- 自定义赛博朋克 topbar（不引 nav.js）-->
+  <div class="cyber-topbar">
+    <div class="ct-logo">A_M_A_R_K_E_T_</div>
+    <div class="ct-status">
+      <span class="blink">●</span> SYS.STATUS = <span class="text-green">ONLINE</span>
+      &nbsp;&nbsp;|&nbsp;&nbsp; SESSION.UID = <span class="text-yellow" id="uid">--------</span>
+      &nbsp;&nbsp;|&nbsp;&nbsp; <span id="clock">00:00:00</span>
+    </div>
+    <a href="index.html" class="ct-back">&lt;&lt; back_to://amarket</a>
+  </div>
 
-      <div class="cs-features">
-        <div class="cs-feature" style="border-left-color:#ff006e">
-          <div class="cs-feature-title">🌈 霓虹双色</div>
-          <div class="cs-feature-desc">cyan #00f5ff 主字 + magenta #ff006e 强调 + 电黄 #fcff00 警示</div>
+  <main class="cyber-shell" x-data="paramsPage()" x-init="init()">
+
+    <!-- Boot 序列 -->
+    <div class="cyber-boot">
+      <div class="line"><span class="prompt">$</span> load params.config_manager <span class="text-magenta">--mode=read_only</span></div>
+      <div class="line"><span class="prompt">$</span> auth.session.lock <span class="text-yellow">= TRUE</span> <span class="text-dim">(M5 will unlock)</span></div>
+      <div class="line">
+        <span class="prompt">$</span> loading...
+        <span class="progress-bar">█████████████████████░░░</span>
+        <span class="text-green">87%</span>
+      </div>
+      <h1>A_M_A_R_K_E_T_CONSOLE</h1>
+      <div class="subtitle">// PARAMS.CONFIG_MANAGER v0.0.1_alpha · READ_ONLY_PREVIEW</div>
+      <div class="subtitle">// <span class="text-magenta">⚠</span> M5 will unlock edit/rollback/audit. current = display preview only.</div>
+    </div>
+
+    <!-- 参数分组面板 -->
+    <template x-for="group in groups" :key="group.name">
+      <div class="cyber-panel">
+        <div class="cp-title">
+          <span class="cp-name" x-text="group.name"></span>
+          <span class="cp-meta" x-text="`${group.items.length} entries · ` + group.note"></span>
         </div>
-        <div class="cs-feature" style="border-left-color:#00f5ff">
-          <div class="cs-feature-title">📺 扫描线 + 辉光</div>
-          <div class="cs-feature-desc">CSS animation 模拟 CRT 显示器扫描；text-shadow 模拟霓虹辉光</div>
-        </div>
-        <div class="cs-feature" style="border-left-color:#fcff00">
-          <div class="cs-feature-title">⌨ 等宽 Console UI</div>
-          <div class="cs-feature-desc">Orbitron 标题 + JetBrains Mono 正文；ASCII 风 nav + 块字符进度条</div>
-        </div>
-        <div class="cs-feature" style="border-left-color:#39ff14">
-          <div class="cs-feature-title">🔒 仅 demo</div>
-          <div class="cs-feature-desc">M5 真实参数模块才解锁编辑/回滚/审计；本页仅风格 demo + read-only 展示</div>
+        <div class="cp-body">
+          <template x-for="p in group.items" :key="p.key">
+            <div class="param-row">
+              <div class="pr-key">
+                <span class="dot">[</span><span x-text="String(p.key.split('.').slice(0,-1).join('.')) "></span><span class="dot">]</span>.<span x-text="p.key.split('.').slice(-1)[0]"></span>
+                <div class="text-dim" style="font-size:11px;margin-top:2px;letter-spacing:0.5px" x-text="'// ' + p.description"></div>
+              </div>
+              <div class="pr-value" :class="formatValueClass(p.value)" x-text="formatValue(p.value)"></div>
+              <div class="pr-action">
+                <button @click="showToast('EDIT_LOCKED // unlock = M5')">EDIT</button>
+              </div>
+            </div>
+          </template>
         </div>
       </div>
+    </template>
 
-      <p class="mt-6 text-muted" style="font-size:13px">说明：PR2 会替换本页为赛博朋克版本，本占位仅展示主题 + 主站 OKX 风格在跨主题导航后的对比效果。<a href="index.html">回首页</a></p>
+    <!-- 底部 footer -->
+    <div class="cyber-footer">
+      <button class="cf-btn" @click="showToast('ROLLBACK_LOCKED // unlock = M5')">[ROLLBACK]</button>
+      <button class="cf-btn" @click="showToast('DIFF_LOCKED // unlock = M5')">[DIFF]</button>
+      <button class="cf-btn" @click="showToast('AUDIT_LOG_LOCKED // unlock = M5')">[AUDIT_LOG]</button>
+      <span class="cf-warn">█ SYSTEM.STANDBY — M5 WILL ACTIVATE</span>
     </div>
+
   </main>
+
+  <!-- Toast 容器 -->
+  <div id="cyber-toast"></div>
+
 </body>
 </html>
