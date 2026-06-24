@@ -11,55 +11,85 @@ Each Spec corresponds to a major milestone. Within a Spec, M0-M9 are intermediat
 
 ## [Unreleased] — Spec #1 v3 进行中
 
-### Added — M3a-PR1 POC 前端 3 页 + dump 脚本（2026-06-24, Session 12, merged via PR #9 + #10）
+### Added — M3a 完整收官（POC 6 页 + 双主题 + dump 脚本）（2026-06-24, Session 12, merged via PR #9 + #10 + #12 + #13）
 
-**Phase 1 M3 拆分为 M3a（前端）+ M3b（API），M3a 又分 PR1（框架+核心3页）+ PR2（剩余+赛博朋克）。本次完成 M3a-PR1。**
+**Phase 1 M3 拆分为 M3a（前端）+ M3b（API），M3a 又分 PR1（框架+核心3页）+ fix（theme+polish）+ PR2（剩余+赛博朋克）。本次完成 M3a 全部 3 个实现 PR。**
 
-#### PR #9: M3a 设计 spec（commit `9881763`）
+#### PR #13: M3a-PR2 — 剩余 3 页 + 赛博朋克 theme（commit `caf4c82`）
 
-写 `docs/superpowers/specs/2026-06-24-m3a-poc-pages-design.md`（821 行）：
-- 6 个页面布局 + 数据源 + 交互（5 OKX 暗色金融风 + 1 赛博朋克 params 空壳）
-- 技术栈：Tailwind + Alpine.js + ECharts CDN，0 build / 0 npm / 0 注册账号
-- 双主题 token（OKX + cyberpunk）+ 共享组件类
-- mock JSON dump 脚本 + schema（对齐 spec v3 §10.3 DTO）
-- 错误处理矩阵 + 验收 checklist + 风险登记
-- M3b 边界（接 API 时每页改 1 行 fetch URL）
+**替换 fix PR 加的 3 个占位页为真实实现：**
 
-#### PR #10: M3a-PR1 实现（commit `7fbf17e`）
+- `poc/assets/css/theme-cyberpunk.css` — 霓虹 cyan #00f5ff / magenta #ff006e / yellow #fcff00 + CRT 扫描线 + 背景网格 + Orbitron 标题 + JetBrains Mono 正文 + 边框辉光
+- `poc/sectors.html` + `sectors.js` — 全屏 ECharts treemap (62vh) + 时间窗口切换 (1h/4h/1d) + 维度切换 (涨跌幅 / 新闻热度 / 市值权重) + 点格子联动该板块新闻列表（从 news.json 按 related_sectors 过滤 + 自定义 tooltip）
+- `poc/reports.html` + `reports.js` — 6 时段 tab + marked.js CDN Markdown 渲染 + 未生成时段灰禁用 + 自定义 `.md-render` 样式（h1/h2/h3 / code / blockquote / hr 全套）
+- `poc/params.html` + `params.js` — 赛博朋克 console UI：boot 进度条 + Orbitron 大标题（cyan→magenta→yellow 三色渐变）+ 参数分组（DATA_SOURCES / NEWS_COLLECTOR / KEYWORDS / AI_ENGINE / ALERTS / SCHEDULER）+ EDIT 按钮 magenta toast "EDIT_LOCKED // unlock = M5" + cyber-topbar 不引 nav.js + 自己的 ASCII 风 nav `<< back_to://amarket`
 
-**前端 — POC 3 个核心页面**：
+**用户验收**："最后的赛博朋克风很不错"
+
+#### PR #12: theme not applying fix + 视觉 polish + 3 stub pages（commit `de7bcc8`）
+
+**关键 bug fix：**
+- 用户反馈 M3a-PR1 上线后页面是**纯白**，不是预期的 OKX 暗色
+- 根因：`data-theme="okx"` 设在 `<body>`，但 CSS 用 `:root[data-theme]` 选择器（`:root` 即 `<html>`），CSS 变量没定义 → Tailwind preflight 默认白底覆盖
+- 修：3 个 HTML 文件的 `data-theme` 从 `<body>` 移到 `<html>`
+
+**视觉 polish（用户要求 "更 OKX 风、字号大点、大胆点"）：**
+- 全局基准字号 14→**15px**
+- 更深底色 #07080a + 更亮主文字 #f0f1f3
+- 更饱和涨跌色 #00d97e / #ff4d5e（带辉光）
+- LOGO 加白→cyan 渐变；topbar LIVE 脉动绿点
+- Hero 市场卡片（22px 大价格 + ▲▼ 涨跌"药丸"）
+- Macro 顶条 4 KPI（总新闻 / P0+P1 / 板块涨跌 / 数据时间）
+- 卡片标题加左侧 cyan 小条 + 辉光
+- 卡片 hover 抬升 2px + cyan glow
+- Active nav 底部 cyan 下划线辉光
+- 告警卡按等级染色左条
+
+**404 修复：**
+- 加 3 个 "PR2 即将" 占位页（sectors / reports / params）
+- 每页 4 feature 卡片预告 PR2 内容
+- params 占位页用 magenta 渐变彩虹色提前体验赛博朋克味
+
+#### PR #10: M3a-PR1 — POC 框架 + 核心 3 页 + 全量 dump（commit `7fbf17e`）
+
+**前端 — POC 3 个核心页面：**
 - `poc/index.html` — Dashboard 首页：9 区域（市场状态栏 / 今日结论 / 实时新闻流 / P0-P1 卡片 / ECharts treemap mini 板块热力图 / 影响板块榜 / 个股异动占位 / 突发告警时间线 / 6 时段日报入口）
 - `poc/news.html` — 新闻流：5 维度筛选（来源 / 分类 / 情绪 / 重要性 / 搜索）+ 3 种排序
 - `poc/news-detail.html` — 单条新闻 + 完整 AI 分析（6 个评分指标 + 影响板块 + 关联标的 + 分析理由 + 风险提示 + 相关新闻 + URL 缺失/404 友好错误）
 
-**前端 — 共享基础设施**：
+**前端 — 共享基础设施：**
 - `poc/assets/css/theme-okx.css`（269 行）：OKX 配色 token + 卡片 / 表格 / tag / num / 滚动条等共享组件类
 - `poc/assets/js/shared.js`：fetch wrapper / 数字-涨跌-时间-情绪格式化 / banner 错误注入 / 时钟 / 桌面宽度检测
 - `poc/assets/js/nav.js`：5+1 链接顶部 nav 自动注入 + 当前页高亮 + 时钟 + 占位 refresh toggle（M3b 接）
 
-**后端 — Mock 数据 dump 脚本**：
+**后端 — Mock 数据 dump 脚本：**
 - `scripts/dump_poc_fixtures.py`（430 行）：从 `data/amarket.db` 一次性 dump 7 类 JSON
 - 真实数据：dashboard.json (26KB) + news.json (117KB, 130 条) + 5×news-detail (含 related_news + ai_reasoning + risk_notes + content) + alerts.json (26KB, 73 条)
 - Placeholder 数据：sectors.json (14 板块 mock) + reports.json (1 盘前 + 5 null) + params.json (15 个手写参数)
 - CLI: `--db` / `--out` / `--limit` / `--pretty` / `--detail-samples`
 - Windows cp1252 stdout 编码 fix（中文 print 不再崩）
 
-**启动 + 工具脚本**：
+**启动 + 工具脚本：**
 - `poc/serve.bat` + `poc/serve.sh`：一键起 `python -m http.server 8090`
 - `poc/README.md`：完整启动 + 故障排查
 
-**测试 + 工程**：
+**测试 + 工程：**
 - `tests/unit/test_dump_poc_fixtures.py`：9 个单测（含 tmp SQLite 种子 fixture）
 - ruff / format / mypy 全绿
 - CI 5/5 通过：Lint + Test (Py 3.11) + Test (Py 3.12) + Typecheck + Docs sanity
 
 **`.gitignore` 修复**：加 `!poc/assets/data/` negation（之前 `data/` 规则误匹配）
 
-**M3a-PR1 设计承诺**：M3b 接 API 时，每个 HTML 页面只改 1 行 `fetch('/assets/data/X.json')` → `fetch('/api/X')`，其他 zero change。JSON schema 富 DTO 已对齐 spec §10.3。
+#### PR #9: M3a 设计 spec（commit `9881763`）
 
-**测试增量**：207 → 216（+9 dump 单测），coverage 维持 87.95%+。
+写 `docs/superpowers/specs/2026-06-24-m3a-poc-pages-design.md`（821 行）。
 
-**下一步**：M3a-PR2（剩余 sectors / reports / params 3 页 + cyberpunk theme，预估 1 session）→ M3b（看板 API + SectorTrendService）。
+### M3a 总体收益
+
+- **6 个 POC 页面全部上线** — 5 OKX 暗色金融风 + 1 赛博朋克控制台
+- **测试增量**：207 → 216（+9 dump 单测），coverage 维持 87.95%+
+- **M3b 接 API 时改动 ≤ 6 行**：每页只改一行 `fetch('/assets/data/X.json')` → `fetch('/api/X')`
+- **下一步**：M3b（看板 API + SectorTrendService）→ M4（推送 + 调度）→ M5（参数模块覆盖赛博朋克 demo）
 
 ---
 
