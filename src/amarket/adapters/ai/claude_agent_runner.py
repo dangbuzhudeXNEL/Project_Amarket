@@ -170,21 +170,44 @@ class ClaudeAgentRunner(AIProvider):
     # ----------------- 内部 ----------------- #
 
     def _build_prompt(self, input_path: Path, output_path: Path) -> str:
-        """构造 agent prompt。要求 agent 读 input 文件 → 分析 → 写 output JSON。"""
+        """构造 agent prompt。要求 agent 读 input 文件 → 分析 → 写 output JSON。
+
+        注意：Claude CLI v2.1+ 倾向于把 JSON 输出到 stdout 而非用 Write 工具，
+        所以这里显式 4 步强调 Write 工具的使用 + 禁止 stdout 解释。
+        """
         rel_in = input_path.relative_to(self._cwd).as_posix()
         rel_out = output_path.relative_to(self._cwd).as_posix()
         return (
-            f"读取 `{rel_in}` 中的新闻数据（NewsAnalysisRequest schema），"
-            f"分析后写出 NewsAnalysisResult 结构 JSON 到 `{rel_out}`。"
-            f"必需字段见 .claude/agents/{self._agent_name}.md。"
+            "你的任务（必须严格按顺序执行）：\n"
+            f"1. 用 Read 工具读取 `{rel_in}`（NewsAnalysisRequest schema）\n"
+            "2. 按 .claude/agents/" + self._agent_name + ".md 定义对新闻做深度分析\n"
+            f"3. **必须** 用 Write 工具把 NewsAnalysisResult JSON 写到 `{rel_out}`\n"
+            "4. 不要在对话里复述 JSON，不要解释，写完文件即结束\n\n"
+            f"输出文件路径：`{rel_out}`（这是绝对要求 — 不写文件视为失败）"
         )
 
     def _run_subprocess_blocking(self, prompt: str) -> subprocess.CompletedProcess[str]:
-        """同步子进程调用（由 asyncio.to_thread 包装为 async）。"""
-        cmd = [self._cli, "--agent", self._agent_name, "-p", prompt]
+        """同步子进程调用（由 asyncio.to_thread 包装为 async）。
+
+        注意：
+        1. 必须加 `--permission-mode acceptEdits`，否则 Claude CLI v2.1+ 在 `-p`
+           非交互模式下 Write 工具因没拿到 permission 会静默失败。
+        2. Windows 上 `claude.CMD` wrapper 处理多行中文 + 反引号会被 cmd.exe 乱码，
+           所以 prompt 走 **stdin** 而不是 argv。Claude CLI `-p` 模式无 positional
+           prompt 时会从 stdin 读取。
+        """
+        cmd = [
+            self._cli,
+            "--agent",
+            self._agent_name,
+            "--permission-mode",
+            "acceptEdits",
+            "-p",
+        ]
         try:
             return subprocess.run(
                 cmd,
+                input=prompt,
                 capture_output=True,
                 text=True,
                 encoding="utf-8",

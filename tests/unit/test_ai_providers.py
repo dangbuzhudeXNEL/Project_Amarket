@@ -164,6 +164,67 @@ def test_claude_runner_health_check_disabled() -> None:
     assert h.status == "disabled"
 
 
+# --------------------------------------------------------------------------- #
+# Brainmaster 真实环境兼容性 regression tests
+# （fix: Claude CLI v2.1+ 在 -p 模式下的两个坑）
+# --------------------------------------------------------------------------- #
+
+
+def test_claude_runner_uses_permission_mode_accept_edits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression: 必须传 --permission-mode acceptEdits 才能让 Write 工具不静默失败。
+
+    Claude CLI v2.1+ 非交互模式 (-p) 下 Write 工具需要 permission；不加这个 flag
+    agent 会在写文件那一步默默失败，subprocess exit=0 但 output 文件没更新。
+    """
+    runner = ClaudeAgentRunner(agent_name="news-classifier-realtime")
+    captured: dict[str, Any] = {}
+
+    def fake_run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        captured["cmd"] = cmd
+        captured["kwargs"] = kwargs
+        return subprocess.CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    runner._run_subprocess_blocking("test prompt")
+
+    cmd = captured["cmd"]
+    assert "--permission-mode" in cmd
+    assert "acceptEdits" in cmd
+    # 顺序也要对：--permission-mode 紧跟 acceptEdits
+    idx = cmd.index("--permission-mode")
+    assert cmd[idx + 1] == "acceptEdits"
+
+
+def test_claude_runner_passes_prompt_via_stdin_not_argv(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression: prompt 必须走 stdin 不能走 argv。
+
+    Windows 上 `claude.CMD` wrapper 通过 cmd.exe 转发 args，多行中文 + 反引号会
+    被乱码。所以 ClaudeAgentRunner 故意把 prompt 走 `input=` 参数（stdin），
+    cmd 列表里只保留 `-p` flag 不带 positional prompt。
+    """
+    runner = ClaudeAgentRunner(agent_name="news-classifier-realtime")
+    captured: dict[str, Any] = {}
+
+    def fake_run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        captured["cmd"] = cmd
+        captured["kwargs"] = kwargs
+        return subprocess.CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    test_prompt = "多行测试 prompt\n带 `反引号` 和中文"
+    runner._run_subprocess_blocking(test_prompt)
+
+    # prompt 必须在 stdin，不在 argv
+    assert captured["kwargs"].get("input") == test_prompt
+    assert test_prompt not in captured["cmd"]
+    # cmd 应以 `-p` 结尾（无 positional prompt）
+    assert captured["cmd"][-1] == "-p"
+
+
 # =========================================================================== #
 # AnthropicSDKProvider
 # =========================================================================== #
