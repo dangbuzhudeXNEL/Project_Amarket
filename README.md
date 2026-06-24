@@ -14,10 +14,12 @@
 
 ## 当前状态
 
-🟡 **Spec v3 设计完成（Phase 1 即将启动 M0）**
+🟢 **Phase 1 实施中（M0/M0+/M1/M2 已完成，准备 M3 静态 POC 页面）**
 
 - 当前 Spec：[Spec #1 v3 — A 股实时新闻分析与行情看板（小组联合版）](docs/superpowers/specs/2026-06-19-spec1-v3-merged.md)
 - 状态快照：[`docs/PROJECT_STATE.md`](docs/PROJECT_STATE.md)
+- 进度：4/7 milestones 完成，端到端 pipeline（采集 → 去重 → 分类 → AI 分析 → P0-P3 告警 → API → Dashboard）已跑通真实数据
+- 测试：207 tests / 87.95% coverage / CI 全绿
 
 ## 路线图（Phase 1 + Phase 2 + 后续 Spec）
 
@@ -25,7 +27,7 @@
 
 | Phase | 范围 | 状态 |
 |-------|------|------|
-| **Phase 1** | 三大模块（新闻 / 交易看板 / 参数配置）+ 6 时段日报 + P0-P3 告警 + 看板 API | ⏳ 即将启动 M0 |
+| **Phase 1** | 三大模块（新闻 / 交易看板 / 参数配置）+ 6 时段日报 + P0-P3 告警 + 看板 API | 🟢 **M0/M0+/M1/M2 完成（57%），准备 M3** |
 | **Phase 2** | Brainmaster AI 集成（subprocess + claude CLI agent）、信号交易（不下单） | 📋 待 Phase 1 完成 |
 
 ### 后续 Spec
