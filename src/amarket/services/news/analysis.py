@@ -93,6 +93,11 @@ class NewsAnalysisService:
         ai_provider: AIProvider | None = None,
     ) -> None:
         self._session = session
+        # 抓 engine 用于 analyze_batch 创建每 task 独立 session（修 P1-5）
+        bind = session.get_bind()
+        from sqlalchemy.engine import Engine
+
+        self._engine: Engine | None = bind if isinstance(bind, Engine) else None
         self._classifier = classifier
         self._scorer = scorer
         self._ai = ai_provider
@@ -167,16 +172,17 @@ class NewsAnalysisService:
     ) -> AnalysisBatchResult:
         """批量分析。AI 路径并发受 concurrency 控制；规则路径串行（快，无需并发）。
 
-        skip_existing=True：已有任意 processed_by 分析过的 news_id 跳过。
+        skip_existing=True：已有"同路径 provider"分析过的 news_id 跳过
+        （AI 路径只在已有 AI 分析时跳；规则路径只在已有 rule 时跳）。
         """
         result = AnalysisBatchResult(total=len(items), analyses=[])
 
-        # 过滤已分析的
+        # 过滤已分析的（按当前 provider 路径精确判定）
         to_process: list[NewsItem] = []
         for it in items:
             if it.id is None:
                 continue
-            if skip_existing and self._has_any_analysis(it.id):
+            if skip_existing and self._has_analysis_for_current_path(it.id):
                 result.skipped += 1
                 continue
             to_process.append(it)
@@ -193,16 +199,52 @@ class NewsAnalysisService:
         sem = asyncio.Semaphore(concurrency)
 
         async def _run_one(it: NewsItem) -> NewsAnalysis | None:
+            """每 task 独立 session（修 reviewer P1-5）。
+
+            原方案：所有 coroutine 共享 self._session。当前 DB 操作是同步的、
+            不释放 event loop，所以并发协程在 DB 步骤上等效串行 — 没爆。
+            但很脆弱：未来如果 (a) 改 async DB driver / (b) 日志切 async sink /
+            (c) repo 方法间塞 await，就会出现交叉 commit race。
+
+            新方案：拿 engine 给每 task 起独立 Session(engine)。返回前 expunge
+            让 NewsAnalysis 行可在 session 外访问（NewsAnalysis 无 lazy 关系）。
+            """
             async with sem:
-                try:
-                    return await self.analyze_one(it)
-                except Exception as exc:  # 兜底：单条失败不拖垮 batch
-                    log.error(
-                        "analysis.unexpected_error",
-                        news_id=it.id,
-                        error=str(exc)[:200],
-                    )
-                    return None
+                # 若没有 engine（in-memory 或外部传入特殊 session），降级用共享 session
+                if self._engine is None:
+                    try:
+                        return await self.analyze_one(it)
+                    except Exception as exc:
+                        log.error(
+                            "analysis.unexpected_error",
+                            news_id=it.id,
+                            error=str(exc)[:200],
+                        )
+                        return None
+
+                with Session(self._engine) as task_session:
+                    try:
+                        local_svc = NewsAnalysisService(
+                            task_session,
+                            classifier=self._classifier,
+                            scorer=self._scorer,
+                            ai_provider=self._ai,
+                        )
+                        # 重新在本 session fetch item（避免跨 session 用 detached 对象）
+                        local_item = task_session.get(NewsItem, it.id)
+                        if local_item is None:
+                            return None
+                        ana = await local_svc.analyze_one(local_item)
+                        # detach: 让 caller 可在 session 外读 ana 的 scalar 字段
+                        task_session.expunge(ana)
+                        return ana
+                    except Exception as exc:
+                        log.error(
+                            "analysis.unexpected_error",
+                            news_id=it.id,
+                            error=str(exc)[:200],
+                        )
+                        return None
 
         analyses = await asyncio.gather(*(_run_one(it) for it in to_process))
 
@@ -234,8 +276,29 @@ class NewsAnalysisService:
             self._source_cache[source_id] = self._session.get(NewsSource, source_id)
         return self._source_cache[source_id]
 
-    def _has_any_analysis(self, news_id: int) -> bool:
-        return len(self._repo.list_for_news(news_id=news_id)) > 0
+    def _has_analysis_for_current_path(self, news_id: int) -> bool:
+        """Provider-aware skip：检查"当前会走的路径"是否已分析过该 news。
+
+        - AI 路径（self._ai enabled）：检查是否有 `agent:*` 或 `sdk:*` 行
+        - 规则路径（self._ai disabled 或 None）：检查是否有 `rule` 行
+
+        修 reviewer P1-1：原 `_has_any_analysis` 是 provider-agnostic，造成
+        "rule 锁死" footgun — 用户先 `--no-ai` 跑了 rule，后续配 API key 想用 AI
+        升级时，老 news 会被错跳过（除非加 --reanalyze）。
+        """
+        existing = self._repo.list_for_news(news_id=news_id)
+        ai_enabled = self._ai is not None and self._ai.enabled
+        rule_marker = ProcessingProvider.RULE.value
+        for ana in existing:
+            if ai_enabled:
+                # AI 路径：任何非 rule 的（agent:* / sdk:*）都算"已分析"
+                if ana.processed_by != rule_marker:
+                    return True
+            else:
+                # 规则路径：只看 rule 行
+                if ana.processed_by == rule_marker:
+                    return True
+        return False
 
     def _build_ai_request(
         self, item: NewsItem, classification: ClassificationResult

@@ -16,17 +16,32 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from sqlmodel import Session
 
 from amarket.core.logging import get_logger
 from amarket.domain.enums import AlertLevel, NewsCategory
-from amarket.domain.models import Alert, NewsAnalysis
+from amarket.domain.models import Alert, NewsAnalysis, NewsItem
 from amarket.repositories.alert_repo import AlertRepo
+from amarket.services.config_service import CONFIG_DIR, _load_yaml
 
 log = get_logger(__name__)
 
 _HIGH_IMPACT_CATEGORIES = {NewsCategory.RISK_EVENT, NewsCategory.MACRO_POLICY}
+
+# Level priority — 数字越小越紧急（P0 = 0 最高）
+_LEVEL_PRIORITY: dict[AlertLevel, int] = {
+    AlertLevel.P0: 0,
+    AlertLevel.P1: 1,
+    AlertLevel.P2: 2,
+    AlertLevel.P3: 3,
+}
+
+
+def _is_higher_priority(new_level: AlertLevel, old_level: AlertLevel) -> bool:
+    """新 level 优先级是否高于旧 level（P0 高于 P1 高于 P2）。"""
+    return _LEVEL_PRIORITY[new_level] < _LEVEL_PRIORITY[old_level]
 
 
 # --------------------------------------------------------------------------- #
@@ -84,23 +99,68 @@ class AlertBatchResult:
 class AlertService:
     """从 NewsAnalysis 生成 Alert。"""
 
-    def __init__(self, session: Session) -> None:
+    def __init__(
+        self,
+        session: Session,
+        *,
+        blacklist_keywords: Sequence[str] | None = None,
+    ) -> None:
+        """构造。
+
+        Args:
+            session: SQLModel session
+            blacklist_keywords: 黑名单关键词列表。命中关键词的新闻不会生成 alert
+                （修 reviewer P1-3 — 避免广告/导购模板新闻误触发告警）。默认空 = 不过滤。
+                建议从 `keywords.yml` 的 `blacklist` 段加载。
+        """
         self._session = session
         self._repo = AlertRepo(session)
+        self._blacklist: list[str] = list(blacklist_keywords or [])
+
+    @classmethod
+    def from_config(
+        cls,
+        session: Session,
+        *,
+        config_dir: Path | None = None,
+    ) -> AlertService:
+        """从默认 config/ 加载黑名单关键词。"""
+        cdir = config_dir or CONFIG_DIR
+        keywords = _load_yaml(cdir / "keywords.yml")
+        return cls(session, blacklist_keywords=keywords.get("blacklist", []))
 
     # ---------------- 公共入口 ---------------- #
 
     def evaluate_and_persist(self, analysis: NewsAnalysis) -> Alert | None:
-        """决策 + 持久化。返回新建/已有 Alert；P3 返回 None。"""
+        """决策 + 持久化。返回新建/已有 Alert；P3 返回 None。
+
+        升档逻辑（修 reviewer P1-2）：如果同 news_id 已存在更低优先级的 pending
+        alert（如旧 P2，新评估为 P0/P1），把旧的标 status='superseded'，防止
+        M4 pusher 看到多条 pending 双推。
+
+        黑名单（修 reviewer P1-3）：关联 NewsItem 命中 keywords.yml 的 blacklist
+        关键词的新闻不生成 alert（保留 news_analysis 行可审计）。
+        """
         level = evaluate_alert_level(analysis)
         if level == AlertLevel.P3:
             return None
-        # NewsAnalysis.news_id 是 NOT NULL（schema 约束）— 不需要 None 防御
+
+        # 黑名单：命中则不生成 alert（news_analysis 行仍保留可审计）
+        if self._is_news_blacklisted(analysis.news_id):
+            log.info(
+                "alert.blacklisted_skip",
+                news_id=analysis.news_id,
+                level=level.value,
+            )
+            return None
 
         # 幂等：同一 news_id + level 不重复
         existing = self._repo.get_for_news_and_level(news_id=analysis.news_id, level=level)
         if existing is not None:
             return existing
+
+        # 升档：把同 news_id 的 pending + 更低优先级 alert 标 superseded
+        self._supersede_lower_priority(analysis.news_id, new_level=level)
 
         alert = Alert(
             news_id=analysis.news_id,
@@ -110,6 +170,40 @@ class AlertService:
             status="pending",
         )
         return self._repo.add(alert)
+
+    def _is_news_blacklisted(self, news_id: int) -> bool:
+        """检查关联的 NewsItem 标题/摘要是否命中黑名单关键词。"""
+        if not self._blacklist:
+            return False
+        news = self._session.get(NewsItem, news_id)
+        if news is None:
+            return False
+        text = news.title + (news.summary or "")
+        return any(kw in text for kw in self._blacklist)
+
+    def _supersede_lower_priority(self, news_id: int, *, new_level: AlertLevel) -> int:
+        """把同 news_id 中 priority 低于 new_level 的 pending alert 标 superseded。
+
+        返回被 superseded 的行数。
+        """
+        existing = self._repo.list_for_news(news_id=news_id, limit=20)
+        count = 0
+        for old in existing:
+            if old.status != "pending":
+                continue
+            if _is_higher_priority(new_level, old.level):
+                old.status = "superseded"
+                self._session.add(old)
+                count += 1
+        if count:
+            self._session.commit()
+            log.info(
+                "alert.superseded",
+                news_id=news_id,
+                new_level=new_level.value,
+                superseded_count=count,
+            )
+        return count
 
     def process_analyses(self, analyses: Sequence[NewsAnalysis]) -> AlertBatchResult:
         """批处理 — 对一批 NewsAnalysis 跑决策 + 写库。"""
@@ -121,10 +215,18 @@ class AlertService:
                 continue
             # NewsAnalysis.news_id 是 NOT NULL（schema 约束）— 不需要 None 防御
 
+            # 黑名单：命中则不生成 alert（修 P1-3）
+            if self._is_news_blacklisted(ana.news_id):
+                result.p3_skipped += 1  # 视为 P3 不入库
+                continue
+
             existing = self._repo.get_for_news_and_level(news_id=ana.news_id, level=level)
             if existing is not None:
                 result.already_existed += 1
                 continue
+
+            # 升档时 supersede 旧的低优先级 alert（修 P1-2）
+            self._supersede_lower_priority(ana.news_id, new_level=level)
 
             alert = self._repo.add(
                 Alert(
