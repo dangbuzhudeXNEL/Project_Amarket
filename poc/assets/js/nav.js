@@ -30,10 +30,10 @@
         <div class="logo">Amarket</div>
         <div class="nav-items">${itemsHtml}</div>
         <div class="topbar-right">
-          <label class="flex items-center gap-1" style="cursor:pointer">
-            <input type="checkbox" id="auto-refresh-toggle" disabled title="M3b 才接 polling">
-            <span>🔄 自动刷新（M3b）</span>
-          </label>
+          <span class="live-indicator">
+            <span class="live-dot"></span>
+            LIVE
+          </span>
           <span id="topbar-clock">--:--:--</span>
         </div>
       </div>

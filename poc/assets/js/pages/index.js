@@ -9,7 +9,9 @@ function indexPage() {
     allAlerts: [],
     importantAlerts: [],
     topSectors: [],
+    sectorsUp: 0,
     reports: {},
+    dataTime: '--:--',
     kindLabels: {
       premarket: '盘前', morning: '早盘', noon: '午间',
       afternoon: '尾盘', close: '收盘', evening: '晚间',
@@ -41,8 +43,9 @@ function indexPage() {
         this.news = news;
         this.allAlerts = alerts;
         this.importantAlerts = alerts.filter((a) => a.level === 'P0' || a.level === 'P1');
-        this.topSectors = sectors.sectors.slice().sort((a, b) => b.news_count_24h - a.news_count_24h).slice(0, 10);
-        // 收集所有 categories（去重）
+        this.topSectors = sectors.sectors.slice().sort((a, b) => b.news_count_24h - a.news_count_24h);
+        this.sectorsUp = sectors.sectors.filter((s) => (s.change_pct ?? 0) >= 0).length;
+        this.dataTime = A.formatTime(dashboard.as_of) || '--:--';
         const catSet = new Set(news.map((n) => n.primary_category).filter(Boolean));
         this.categories = Array.from(catSet).sort();
         this.$nextTick(() => this.renderHeatmap(sectors));
@@ -69,8 +72,9 @@ function indexPage() {
         name: `${s.name}\n${s.change_pct >= 0 ? '+' : ''}${s.change_pct}%`,
         value: Math.abs(s.change_pct) + 1,
         itemStyle: {
-          color: s.change_pct >= 0 ? '#14b143' : '#ef454a',
-          opacity: Math.min(1, 0.4 + Math.abs(s.change_pct) / 4),
+          color: s.change_pct >= 0 ? '#00d97e' : '#ff4d5e',
+          opacity: Math.min(1, 0.45 + Math.abs(s.change_pct) / 4),
+          borderRadius: 4,
         },
       }));
       chart.setOption({
@@ -81,8 +85,8 @@ function indexPage() {
           roam: false,
           nodeClick: false,
           breadcrumb: { show: false },
-          label: { show: true, color: '#fff', fontSize: 12 },
-          itemStyle: { borderColor: '#0c0d0f', borderWidth: 2 },
+          label: { show: true, color: '#fff', fontSize: 12, fontWeight: 600 },
+          itemStyle: { borderColor: '#07080a', borderWidth: 3, gapWidth: 3 },
         }],
       });
       window.addEventListener('resize', () => chart.resize());
