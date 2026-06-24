@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Amarket — 新闻流</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="assets/css/theme-okx.css">
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="assets/js/shared.js"></script>
+  <script src="assets/js/nav.js"></script>
+  <script defer src="assets/js/pages/news.js"></script>
+</head>
+<body data-theme="okx">
+  <div id="topbar-mount"></div>
+
+  <main class="page-shell" x-data="newsPage()" x-init="init()">
+
+    <div class="flex gap-4">
+
+      <!-- 左侧筛选 -->
+      <aside class="card" style="width:240px;flex-shrink:0;max-height:90vh;overflow-y:auto;position:sticky;top:80px">
+
+        <div class="card-title">来源</div>
+        <template x-for="src in sourceOptions" :key="src">
+          <label class="flex items-center gap-2 mb-2" style="cursor:pointer">
+            <input type="checkbox" :value="src" x-model="filter.sources">
+            <span x-text="src"></span>
+          </label>
+        </template>
+
+        <div class="card-title mt-4">分类</div>
+        <template x-for="cat in categoryOptions" :key="cat">
+          <label class="flex items-center gap-2 mb-2" style="cursor:pointer">
+            <input type="checkbox" :value="cat" x-model="filter.categories">
+            <span x-text="cat"></span>
+          </label>
+        </template>
+
+        <div class="card-title mt-4">情绪</div>
+        <template x-for="sent in ['强利多','利多','中性','利空','强利空']" :key="sent">
+          <label class="flex items-center gap-2 mb-2" style="cursor:pointer">
+            <input type="checkbox" :value="sent" x-model="filter.sentiments">
+            <span :class="fmt.sentClass(sent)" x-text="sent"></span>
+          </label>
+        </template>
+
+        <div class="card-title mt-4">最低重要性</div>
+        <select x-model.number="filter.minImportance" class="w-full">
+          <option :value="0">不限</option>
+          <option :value="3">≥ 3 星</option>
+          <option :value="4">≥ 4 星</option>
+          <option :value="5">= 5 星</option>
+        </select>
+
+        <button @click="resetFilter()" class="btn w-full mt-4">清空筛选</button>
+      </aside>
+
+      <!-- 主区域 -->
+      <div class="flex-1">
+
+        <!-- 顶部 toolbar：搜索 + 排序 + 计数 -->
+        <div class="card mb-4 flex gap-4 items-center">
+          <input type="search" placeholder="搜索标题..." x-model="filter.search" class="flex-1">
+          <select x-model="filter.sortBy">
+            <option value="time">时间排序</option>
+            <option value="importance">重要性排序</option>
+            <option value="sentiment">情绪排序</option>
+          </select>
+          <span class="text-muted" x-text="`共 ${filteredNews.length} 条`"></span>
+        </div>
+
+        <!-- 已选筛选 -->
+        <div x-show="hasActiveFilters" class="mb-4 flex gap-2 items-center" style="flex-wrap:wrap">
+          <span class="text-muted" style="font-size:11px">已选：</span>
+          <template x-for="src in filter.sources" :key="src">
+            <span class="tag" style="cursor:pointer" @click="filter.sources = filter.sources.filter(s => s !== src)" x-text="src + ' ×'"></span>
+          </template>
+          <template x-for="cat in filter.categories" :key="cat">
+            <span class="tag" style="cursor:pointer" @click="filter.categories = filter.categories.filter(c => c !== cat)" x-text="cat + ' ×'"></span>
+          </template>
+          <template x-for="sent in filter.sentiments" :key="sent">
+            <span class="tag" :class="fmt.sentClass(sent)" style="cursor:pointer" @click="filter.sentiments = filter.sentiments.filter(s => s !== sent)" x-text="sent + ' ×'"></span>
+          </template>
+        </div>
+
+        <!-- 新闻列表 -->
+        <div class="card" style="padding:0">
+          <template x-for="item in sortedNews" :key="item.news_id">
+            <a :href="`news-detail.html?id=${item.news_id}`" style="display:block;padding:14px 18px;border-bottom:1px solid var(--border-default)">
+              <div class="flex justify-between items-center mb-2">
+                <div class="flex gap-2 items-center">
+                  <span class="num text-muted" style="font-size:12px" x-text="fmt.dateTime(item.published_at)"></span>
+                  <span class="text-muted" style="font-size:12px" x-text="item.source"></span>
+                </div>
+                <div class="flex gap-1">
+                  <span x-show="item.alert_level" :class="fmt.alertClass(item.alert_level)" x-text="item.alert_level"></span>
+                </div>
+              </div>
+              <div style="font-size:15px;font-weight:500;margin-bottom:8px" x-text="item.title"></div>
+              <div class="flex gap-2 items-center" style="font-size:12px;flex-wrap:wrap">
+                <span class="tag" x-show="item.primary_category" x-text="item.primary_category"></span>
+                <template x-for="t in (item.tags || []).slice(0, 3)" :key="t">
+                  <span class="tag" x-text="t"></span>
+                </template>
+                <span class="stars" x-show="item.importance" x-text="fmt.stars(item.importance)"></span>
+                <span x-show="item.sentiment" :class="fmt.sentClass(item.sentiment)" x-text="item.sentiment"></span>
+                <span x-show="item.related_sectors && item.related_sectors.length" class="text-muted">
+                  · 影响：<template x-for="sec in item.related_sectors.slice(0,3)" :key="sec.name"><span x-text="sec.name + ' '"></span></template>
+                </span>
+              </div>
+            </a>
+          </template>
+          <div x-show="!filteredNews.length" class="p-6 text-muted" style="text-align:center">无符合筛选的新闻</div>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
