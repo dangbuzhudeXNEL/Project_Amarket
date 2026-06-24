@@ -11,6 +11,71 @@ Each Spec corresponds to a major milestone. Within a Spec, M0-M9 are intermediat
 
 ## [Unreleased] — Spec #1 v3 进行中
 
+### Fixed — M2 Brainmaster + Reviewer P1 backlog（2026-06-24, Session 11, merged via PR #4 + #5）
+
+**Phase 1 M2 工程债务清零** ✅
+Demo Brainmaster 路径暴露 2 个 Windows 真实环境 bug（unit test 测不出，mock 跳过了）+
+收掉 reviewer 留下的 4 个 P1 backlog。M3 启动前所有阻塞已清。
+
+#### PR #4: Brainmaster 真实环境兼容性（commit `52dfb18`）
+
+**Bug #1 — Claude CLI v2.1+ 非交互模式 Write 工具静默失败**
+- 现象：subprocess exit=0 但 agent 不写 output 文件
+- 根因：`-p` 模式下 Write 需要 permission，默认要求用户交互确认
+- 修复：加 `--permission-mode acceptEdits` 让 Write 自动被许可
+- agent 只在 `data/ai/outputs/` 下写，安全可控
+
+**Bug #2 — Windows `.CMD` wrapper 多行中文 prompt 乱码**
+- 现象：手动 bash 跑 OK，Python subprocess 调失败
+- 根因：`shutil.which('claude')` 返回 `claude.CMD`，cmd.exe 转发多行中文 + 反引号会被字符集转换乱码
+- 修复：prompt 走 stdin (`input=`)，cmd 列表只保留 `-p` flag
+
+**真实验证**：5 条高 importance 新闻通过 Brainmaster，AI 输出明显优于规则：
+- 马克龙伊朗战争 → AI 关联能源/油气/军工/黄金 + 5 个 A 股个股代码 + 推理
+- 俄罗斯央行降息 → AI 识别俄国≠中国央行，importance 5→3
+- 广东省方案 → AI 识别区域政策非全国级，importance 5→3
+
+**Regression tests**（防回归）：
+- `test_claude_runner_uses_permission_mode_accept_edits`
+- `test_claude_runner_passes_prompt_via_stdin_not_argv`
+
+#### PR #5: Reviewer P1 backlog（commit `8e644bc`）
+
+| ID | 问题 | 修复 |
+|----|------|------|
+| **P1-1** | `_has_any_analysis` provider-agnostic → rule 锁死 AI 升级 | 改 `_has_analysis_for_current_path`，AI 路径只看 `agent:*/sdk:*` 行 |
+| **P1-2** | 同 news 升档双 alert → M4 双推 | 新 alert 高于已有时把旧 pending 标 `superseded`（升档 only） |
+| **P1-3** | 黑名单新闻仍生成 alert | AlertService 加 `blacklist_keywords` + `from_config()` 自动加载 keywords.yml |
+| **P1-5** | asyncio.gather 共享 session race 隐患 | `Session(engine)` 每 task 独立 + `expunge` 让 detached 对象可访问 |
+
+**设计决策**：
+- P1-2 只升档 supersede 不降档：避免误丢 P0 历史告警痕迹
+- P1-3 黑名单只 skip alert 不删 analysis 行：保留审计能力
+- P1-5 fallback 共享 session：engine 抓不到时（特殊场景）兼容原行为
+
+**Regression tests**：10 个新 case（4 P1-1 / 3 P1-2 / 3 P1-3 / 1 P1-5）
+
+#### Changed
+
+- `config/app.yml`：`current_milestone: M1 → M2`（dashboard 顶部显示）
+- CLI: `AlertService(session)` → `AlertService.from_config(session)`（一行升级 + 自动加载黑名单）
+
+#### 统计
+
+- **207 tests passed**（从 195 → +12: PR #4 +2 + PR #5 +10）
+- **87.95% coverage**（不变）
+- ruff + mypy + CI 5/5 全过
+- 7 文件改动 / 530 行新增（含 commits 总和）
+
+#### 留 backlog（reviewer P2，无阻塞）
+
+- P2-1 `_compute_top_source` SQL GROUP BY 优化
+- P2-2 `_source_cache` LRU 上限
+- P2-3 SimHash distance==threshold 边界测试
+- P2-4 market_hours 4 个端点边界 + 周末测试
+- P2-5 DeepSeek json_object 中文 enum 真实 API 验证
+- P2-6 `processed_by` 字符串集中常量
+
 ### Added — Phase 1 M2 智能层完整闭环（2026-06-21, Sessions 08-10, merged via PR #2）
 
 **Phase 1 M2：新闻去重 + 分类 + 评分 + AI 分析 + P0-P3 告警 + 完整 pipeline** ✅
