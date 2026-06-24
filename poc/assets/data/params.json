@@ -1,0 +1,107 @@
+[
+  {
+    "key": "sources.ths.enabled",
+    "value": true,
+    "scope": "global",
+    "description": "同花顺新闻源启用",
+    "sensitive": false
+  },
+  {
+    "key": "sources.eastmoney.enabled",
+    "value": true,
+    "scope": "global",
+    "description": "东方财富启用",
+    "sensitive": false
+  },
+  {
+    "key": "sources.yahoo.enabled",
+    "value": false,
+    "scope": "global",
+    "description": "Yahoo 财经启用",
+    "sensitive": false
+  },
+  {
+    "key": "news.realtime_poll_seconds",
+    "value": 60,
+    "scope": "global",
+    "description": "新闻轮询间隔（秒）",
+    "sensitive": false
+  },
+  {
+    "key": "news.batch_size",
+    "value": 50,
+    "scope": "global",
+    "description": "一次拉取上限",
+    "sensitive": false
+  },
+  {
+    "key": "keywords.涨停.weight",
+    "value": 0.8,
+    "scope": "global",
+    "description": "关键词「涨停」权重",
+    "sensitive": false
+  },
+  {
+    "key": "keywords.降准.weight",
+    "value": 1.0,
+    "scope": "global",
+    "description": "关键词「降准」权重",
+    "sensitive": false
+  },
+  {
+    "key": "keywords.IPO.weight",
+    "value": 0.5,
+    "scope": "global",
+    "description": "关键词「IPO」权重",
+    "sensitive": false
+  },
+  {
+    "key": "ai.provider",
+    "value": "agent",
+    "scope": "global",
+    "description": "AI provider: agent / anthropic / deepseek / rule",
+    "sensitive": false
+  },
+  {
+    "key": "ai.timeout_seconds",
+    "value": 45,
+    "scope": "global",
+    "description": "单条 AI 分析超时",
+    "sensitive": false
+  },
+  {
+    "key": "alerts.p0_min_importance",
+    "value": 5,
+    "scope": "global",
+    "description": "P0 告警最低重要性",
+    "sensitive": false
+  },
+  {
+    "key": "alerts.p1_min_importance",
+    "value": 4,
+    "scope": "global",
+    "description": "P1 告警最低重要性",
+    "sensitive": false
+  },
+  {
+    "key": "alerts.cooldown_minutes",
+    "value": 15,
+    "scope": "global",
+    "description": "同主题告警冷却时长",
+    "sensitive": false
+  },
+  {
+    "key": "scheduler.market_data_minutes",
+    "value": 5,
+    "scope": "global",
+    "description": "行情快照刷新间隔",
+    "sensitive": false
+  },
+  {
+    "key": "scheduler.report_premarket_cron",
+    "value": "0 8 * * 1-5",
+    "scope": "global",
+    "description": "盘前日报 cron",
+    "sensitive": false
+  }
+]

@@ -54,6 +54,7 @@ logs/
 
 # ===== Local runtime data =====
 data/
+!poc/assets/data/
 *.db
 *.db-journal
 *.sqlite

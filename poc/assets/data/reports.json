@@ -1,0 +1,18 @@
+{
+  "today": "2026-06-24",
+  "reports_by_kind": {
+    "premarket": {
+      "report_id": 1,
+      "kind": "premarket",
+      "status": "completed",
+      "markdown": "## 隔夜美股\n- 道指 +0.5%，纳斯达克 +1.2%\n- 半导体板块领涨，AMD +3%\n\n## 政策面\n- 央行降准 0.25%（M3a mock）\n\n## 今日关注\n- 关注券商板块走势\n- 半导体补涨机会\n",
+      "generated_by": "agent:daily-report-writer (mock)",
+      "generated_at": "2026-06-24T16:09:13.702866+00:00"
+    },
+    "morning": null,
+    "noon": null,
+    "afternoon": null,
+    "close": null,
+    "evening": null
+  }
+}

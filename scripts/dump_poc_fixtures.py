@@ -13,9 +13,18 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+# Windows cp1252 console fix — POC dump 输出有中文进度
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
+        sys.stderr.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
+    except (AttributeError, OSError):
+        pass
 
 from sqlmodel import Session, create_engine
 
@@ -47,7 +56,7 @@ def write_json(path: Path, data: Any, *, pretty: bool) -> None:
     indent = 2 if pretty else None
     text = json.dumps(data, ensure_ascii=False, indent=indent, default=_json_default)
     path.write_text(text, encoding="utf-8")
-    print(f"  ✓ wrote {path} ({len(text):,} bytes)")
+    print(f"  [OK] wrote {path} ({len(text):,} bytes)")
 
 
 def _json_default(o: Any) -> Any:
@@ -81,7 +90,7 @@ def main() -> int:
         for nid in dump_news_details(
             session, out, limit=args.detail_samples, pretty=args.pretty
         ):
-            print(f"  ✓ news-detail-{nid}.json")
+            print(f"  [OK] news-detail-{nid}.json")
 
         print("\n=== Dumping alerts.json ===")
         write_json(out / "alerts.json", dump_alerts(session), pretty=args.pretty)
@@ -95,7 +104,7 @@ def main() -> int:
         print("\n=== Dumping params.json (handwritten, M5 真填) ===")
         write_json(out / "params.json", dump_params_handwritten(), pretty=args.pretty)
 
-    print("\n✅ All done.")
+    print("\n[DONE] All done.")
     return 0
 
 

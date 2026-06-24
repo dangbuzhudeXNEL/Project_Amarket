@@ -1,0 +1,44 @@
+{
+  "news_id": 126,
+  "title": "【乌方称俄军袭击民船和巴士致1死9伤】乌克兰副总理阿列克谢·库列巴19日在社交媒体发文称，两艘悬挂外国国旗的民用船只在黑海遭到俄军无人机袭击，导致1人死亡、5人受伤。库列巴称，袭击导致一艘悬挂巴拿马国旗的船只上1名船员死亡、2人受伤，其中一名船员伤势严重；另一艘悬挂圣基茨和尼维斯国旗的船只有3名船员在袭击中受轻伤。库列巴未提及船只遭袭时间。乌克兰赫尔松州军事管理局19日在社交媒体发文称，当天早上，该州科拉别利尼区的一辆小巴遭到俄军无人机袭击，导致4人受伤。（新华社）",
+  "summary": null,
+  "source": "新浪财经 7x24",
+  "source_code": "sina",
+  "source_priority": "medium",
+  "url": "https://finance.sina.cn/7x24/2026-06-19/detail-inicxyys2728107.d.html",
+  "published_at": "2026-06-19T12:33:26.208089",
+  "fetched_at": "2026-06-19T12:33:26.515904",
+  "primary_category": "市场行情",
+  "tags": [
+    "低空经济"
+  ],
+  "sentiment": "中性",
+  "importance": 2,
+  "urgency": 2,
+  "confidence": 3,
+  "impact_horizon": "日内",
+  "action_hint": "观察",
+  "related_sectors": [
+    {
+      "name": "低空经济",
+      "weight": 1
+    }
+  ],
+  "related_symbols": [
+    {
+      "name": "中信海直",
+      "weight": 1
+    },
+    {
+      "name": "亿航智能",
+      "weight": 1
+    }
+  ],
+  "alert_level": null,
+  "pushed": false,
+  "processed_by": "rule",
+  "related_news": [],
+  "ai_reasoning": null,
+  "risk_notes": "规则路径兜底（AI 全部不可用 / 失败）",
+  "content": null
+}
