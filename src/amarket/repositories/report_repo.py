@@ -65,12 +65,7 @@ class ReportRepo(BaseRepo[Report]):
         today: date_t,
     ) -> Report | None:
         """同 date + kind 唯一约束 — 命中即唯一。"""
-        stmt = (
-            select(Report)
-            .where(Report.date == today)
-            .where(Report.kind == kind)
-            .limit(1)
-        )
+        stmt = select(Report).where(Report.date == today).where(Report.kind == kind).limit(1)
         return self.session.exec(stmt).first()
 
     def list_today(self, *, today: date_t) -> dict[str, Report | None]:

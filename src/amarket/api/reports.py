@@ -127,9 +127,7 @@ async def get_report(
     repo = ReportRepo(session)
     r = repo.get(report_id)
     if r is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="report not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="report not found")
     return _to_detail(r)
 
 

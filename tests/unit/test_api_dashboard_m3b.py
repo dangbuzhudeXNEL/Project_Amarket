@@ -73,9 +73,7 @@ def seed_sectors_data(patched_engine: Engine) -> None:
         session.commit()
 
 
-def test_sectors_news_heat_counted(
-    api_client: TestClient, seed_sectors_data: None
-) -> None:
+def test_sectors_news_heat_counted(api_client: TestClient, seed_sectors_data: None) -> None:
     resp = api_client.get("/api/dashboard/sectors")
     assert resp.status_code == 200
     by_name = {s["name"]: s for s in resp.json()["sectors"]}
@@ -213,9 +211,7 @@ def test_summary_empty_db_returns_skeleton(api_client: TestClient) -> None:
         assert kind in data["today_reports"]
 
 
-def test_summary_aggregates_alerts_by_level(
-    api_client: TestClient, patched_engine: Engine
-) -> None:
+def test_summary_aggregates_alerts_by_level(api_client: TestClient, patched_engine: Engine) -> None:
     """seed 一个 P0 + 一个 P1 + 一个 P2 → summary p0_alerts 1 个，p1_alerts 1 个。"""
     with Session(patched_engine) as session:
         src = NewsSource(code="t", name="测试", priority=SourcePriority.HIGH)

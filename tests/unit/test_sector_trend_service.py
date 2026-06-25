@@ -109,9 +109,7 @@ def test_list_sectors_empty_db_returns_14_with_zeros(session: Session) -> None:
         assert s.top_symbols == []
 
 
-def test_list_sectors_news_heat_from_analysis(
-    session: Session, seed_news_analyses: None
-) -> None:
+def test_list_sectors_news_heat_from_analysis(session: Session, seed_news_analyses: None) -> None:
     """有 news + analysis → 券商 heat=2，银行 heat=1，保险 heat=1。"""
     svc = SectorTrendService(session)
     result = svc.list_sectors(window=timedelta(days=1))

@@ -49,9 +49,7 @@ def test_reports_list_empty_db(api_client: TestClient) -> None:
     assert data["total"] == 0
 
 
-def test_reports_list_returns_items(
-    api_client: TestClient, seed_today_reports: None
-) -> None:
+def test_reports_list_returns_items(api_client: TestClient, seed_today_reports: None) -> None:
     resp = api_client.get("/api/reports")
     assert resp.status_code == 200
     data = resp.json()
@@ -62,9 +60,7 @@ def test_reports_list_returns_items(
     assert "markdown" not in data["items"][0]
 
 
-def test_reports_list_filter_by_kind(
-    api_client: TestClient, seed_today_reports: None
-) -> None:
+def test_reports_list_filter_by_kind(api_client: TestClient, seed_today_reports: None) -> None:
     resp = api_client.get("/api/reports?kind=premarket")
     assert resp.status_code == 200
     assert resp.json()["total"] == 1
@@ -87,9 +83,7 @@ def test_reports_get_detail_404(api_client: TestClient) -> None:
     assert resp.status_code == 404
 
 
-def test_reports_today_returns_6_kinds(
-    api_client: TestClient, seed_today_reports: None
-) -> None:
+def test_reports_today_returns_6_kinds(api_client: TestClient, seed_today_reports: None) -> None:
     resp = api_client.get("/api/reports/today")
     assert resp.status_code == 200
     data = resp.json()
@@ -105,9 +99,7 @@ def test_reports_today_returns_6_kinds(
     assert data["reports_by_kind"]["evening"] is None
 
 
-def test_reports_today_specific_kind(
-    api_client: TestClient, seed_today_reports: None
-) -> None:
+def test_reports_today_specific_kind(api_client: TestClient, seed_today_reports: None) -> None:
     resp = api_client.get("/api/reports/today/premarket")
     assert resp.status_code == 200
     assert resp.json()["kind"] == "premarket"

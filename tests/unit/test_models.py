@@ -103,8 +103,14 @@ def test_m3b_dtos_instantiate_and_serialize() -> None:
         p1_alerts=[],
         top_sectors=[sector],
         top_movers=[mover],
-        today_reports={"premarket": None, "morning": None, "noon": None,
-                       "afternoon": None, "close": None, "evening": None},
+        today_reports={
+            "premarket": None,
+            "morning": None,
+            "noon": None,
+            "afternoon": None,
+            "close": None,
+            "evening": None,
+        },
     )
     # JSON 序列化不崩
     assert summary.model_dump_json()

@@ -115,9 +115,9 @@ class SectorTrendService:
         if by == "news_heat":
             sectors.sort(key=lambda s: s.news_count_24h, reverse=True)
         elif by == "change_pct":
-            sectors.sort(key=lambda s: (s.change_pct or 0.0), reverse=True)
+            sectors.sort(key=lambda s: s.change_pct or 0.0, reverse=True)
         elif by == "market_cap_weight":
-            sectors.sort(key=lambda s: (s.market_cap_weight or 0.0), reverse=True)
+            sectors.sort(key=lambda s: s.market_cap_weight or 0.0, reverse=True)
         else:
             log.warning("sector.top_n.unknown_by", by=by)
         return sectors[:n]
