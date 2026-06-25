@@ -88,6 +88,74 @@ class NewsListResponse(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
+# News Detail DTOs（M3b post-merge polish — `/api/news/{id}` 完整 AI 分析）
+# --------------------------------------------------------------------------- #
+
+
+class RelatedNewsDTO(BaseModel):
+    """同事件聚合下的其他新闻（news-detail 页"相关新闻"区）。"""
+
+    news_id: int
+    title: str
+    source: str
+    published_at: datetime
+    url: str | None = None
+
+
+class NewsDetailDTO(BaseModel):
+    """`GET /api/news/{id}` 完整详情 DTO — 含全部 AI 分析字段 + 相关新闻。
+
+    与列表用的 NewsCardDTO 区别：
+    - 加 content（正文全文）
+    - 加全部 AI 评分（confidence / impact_horizon / action_hint）
+    - 加 related_sectors / related_symbols（JSON list[dict]）
+    - 加 ai_reasoning / risk_notes（AI 推理 + 风险提示）
+    - 加 processed_by（哪个 provider 跑的：rule / sdk:* / agent:*）
+    - 加 pushed（是否已推送过）
+    - 加 related_news（同 event_id 下的其他新闻）
+    """
+
+    # 基础字段
+    news_id: int
+    title: str
+    summary: str | None = None
+    content: str | None = None  # 详情独有：正文全文
+    source: str
+    source_priority: str | None = None
+    url: str | None = None
+    published_at: datetime
+    fetched_at: datetime
+
+    # AI 分类
+    primary_category: str | None = None
+    tags: list[str] = Field(default_factory=list)
+
+    # AI 评分（1-5）
+    sentiment: str | None = None
+    importance: int | None = None
+    urgency: int | None = None
+    confidence: int | None = None  # 详情独有
+    impact_horizon: str | None = None  # 详情独有
+    action_hint: str | None = None  # 详情独有
+
+    # 影响范围 — 详情独有
+    related_sectors: list[dict[str, Any]] = Field(default_factory=list)
+    related_symbols: list[dict[str, Any]] = Field(default_factory=list)
+
+    # AI 推理 — 详情独有
+    ai_reasoning: str | None = None
+    risk_notes: str | None = None
+    processed_by: str | None = None
+
+    # 告警
+    alert_level: str | None = None
+    pushed: bool = False  # 详情独有
+
+    # 相关新闻（同事件） — 详情独有
+    related_news: list[RelatedNewsDTO] = Field(default_factory=list)
+
+
+# --------------------------------------------------------------------------- #
 # Alert DTOs（M2-h）
 # --------------------------------------------------------------------------- #
 
@@ -256,9 +324,11 @@ __all__ = [
     "MoverDTO",
     "MoversListResponse",
     "NewsCardDTO",
+    "NewsDetailDTO",
     "NewsListResponse",
     "NewsSourceDTO",
     "RawNewsItem",
+    "RelatedNewsDTO",
     "ReportDetailDTO",
     "ReportListResponse",
     "ReportSummaryDTO",

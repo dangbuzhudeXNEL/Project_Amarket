@@ -101,6 +101,43 @@ def test_api_news_get_by_id(api_client: TestClient, seed_news: dict[str, int]) -
     assert detail["news_id"] == news_id
 
 
+def test_api_news_get_by_id_returns_detail_fields(
+    api_client: TestClient, seed_news: dict[str, int]
+) -> None:
+    """GET /api/news/{id} 必须返回 NewsDetailDTO（含完整 AI 分析字段 + related_news）。
+
+    M3b post-merge polish：列表用 NewsCardDTO 轻量；详情扩为 NewsDetailDTO 含全部字段。
+    """
+    list_resp = api_client.get("/api/news?limit=1")
+    news_id = list_resp.json()["items"][0]["news_id"]
+    resp = api_client.get(f"/api/news/{news_id}")
+    assert resp.status_code == 200
+    detail = resp.json()
+
+    # NewsDetailDTO 独有字段（NewsCardDTO 没有的）必须都出现在响应里
+    detail_only_fields = {
+        "content",
+        "confidence",
+        "impact_horizon",
+        "action_hint",
+        "related_sectors",
+        "related_symbols",
+        "ai_reasoning",
+        "risk_notes",
+        "processed_by",
+        "pushed",
+        "related_news",
+    }
+    missing = detail_only_fields - set(detail.keys())
+    assert not missing, f"NewsDetailDTO 缺字段：{missing}"
+
+    # 默认值检查（无 analysis 时这些字段是 None / []）
+    assert detail["related_sectors"] == []
+    assert detail["related_symbols"] == []
+    assert detail["related_news"] == []
+    assert detail["pushed"] is False
+
+
 def test_api_news_get_404(api_client: TestClient, seed_news: dict[str, int]) -> None:
     resp = api_client.get("/api/news/99999")
     assert resp.status_code == 404
