@@ -133,9 +133,44 @@
     }
   }
 
+  /**
+   * 自动刷新工具（M3b polling）。
+   * @param {number} intervalMs - 间隔毫秒
+   * @param {Function} fn - 每 tick 调用（应为 async；忽略返回值；异常会被吞掉但 console.warn）
+   * @returns {{stop: () => void}} 控制句柄
+   */
+  function startAutoRefresh(intervalMs, fn) {
+    let stopped = false;
+    let timer = null;
+    async function tick() {
+      if (stopped) return;
+      try { await fn(); } catch (e) { console.warn('[autorefresh]', e); }
+      if (!stopped) timer = setTimeout(tick, intervalMs);
+    }
+    timer = setTimeout(tick, intervalMs);
+    return { stop() { stopped = true; if (timer) clearTimeout(timer); } };
+  }
+
+  const POLLING_LS_KEY = 'amarket.polling.enabled';
+
+  /** 读 polling 开关（持久到 localStorage，默认 false）。 */
+  function isPollingEnabled() {
+    try { return localStorage.getItem(POLLING_LS_KEY) === '1'; }
+    catch { return false; }
+  }
+
+  /** 写 polling 开关；返回新值。 */
+  function setPollingEnabled(enabled) {
+    try {
+      localStorage.setItem(POLLING_LS_KEY, enabled ? '1' : '0');
+    } catch { /* ignore */ }
+    return enabled;
+  }
+
   global.Amarket = {
     fetchJSON, formatNumber, formatChangePct, formatDateTime, formatTime,
     timeAgo, stars, sentimentClass, alertTagClass, showBanner,
     getQueryParam, startClock, checkViewport,
+    startAutoRefresh, isPollingEnabled, setPollingEnabled,
   };
 })(window);
