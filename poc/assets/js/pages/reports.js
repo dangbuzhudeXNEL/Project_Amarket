@@ -17,7 +17,7 @@ function reportsPage() {
     async init() {
       A.checkViewport();
       try {
-        const data = await A.fetchJSON('assets/data/reports.json');
+        const data = await A.fetchJSON('/api/reports/today');
         this.today = data.today || '';
         this.reportsByKind = data.reports_by_kind || {};
 
