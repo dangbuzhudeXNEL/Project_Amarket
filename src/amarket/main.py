@@ -9,9 +9,11 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from amarket import __version__
 from amarket.api import alerts, dashboard, health, metrics, news, reports
@@ -82,6 +84,11 @@ def create_app() -> FastAPI:
     app.include_router(dashboard.router)
     app.include_router(alerts.router)  # M2-h
     app.include_router(reports.router)  # M3b
+
+    # POC 静态目录 mount（M3b — 同源避 CORS）
+    poc_dir = Path(__file__).resolve().parents[2] / "poc"
+    if poc_dir.is_dir():
+        app.mount("/poc", StaticFiles(directory=poc_dir, html=True), name="poc")
 
     return app
 
