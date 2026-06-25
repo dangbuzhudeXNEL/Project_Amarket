@@ -11,12 +11,13 @@ from sqlmodel import Session
 
 from amarket.domain.enums import (
     ActionHint,
+    AlertLevel,
     ImpactHorizon,
     NewsCategory,
     Sentiment,
     SourcePriority,
 )
-from amarket.domain.models import MarketSnapshot, NewsAnalysis, NewsItem, NewsSource
+from amarket.domain.models import Alert, MarketSnapshot, NewsAnalysis, NewsItem, NewsSource
 
 # --------------------------------------------------------------------------- #
 # /api/dashboard/sectors
@@ -188,3 +189,92 @@ def test_movers_n_param_bounded(api_client: TestClient, seed_market_snapshots: N
     assert resp.status_code == 200
     # 只有 2 个 gainer + 2 个 loser
     assert len(resp.json()["top_gainers"]) == 2
+
+
+# --------------------------------------------------------------------------- #
+# /api/dashboard/summary
+# --------------------------------------------------------------------------- #
+
+
+def test_summary_empty_db_returns_skeleton(api_client: TestClient) -> None:
+    resp = api_client.get("/api/dashboard/summary")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "as_of" in data
+    assert "market_status" in data
+    assert "latest_news" in data
+    assert data["latest_news"] == []
+    assert data["p0_alerts"] == []
+    assert data["p1_alerts"] == []
+    assert len(data["top_sectors"]) == 14  # 14 板块都给出（即使 heat=0）
+    assert "today_reports" in data
+    # 6 时段 key 都有，但 value 可能 null
+    for kind in ("premarket", "morning", "noon", "afternoon", "close", "evening"):
+        assert kind in data["today_reports"]
+
+
+def test_summary_aggregates_alerts_by_level(
+    api_client: TestClient, patched_engine: Engine
+) -> None:
+    """seed 一个 P0 + 一个 P1 + 一个 P2 → summary p0_alerts 1 个，p1_alerts 1 个。"""
+    with Session(patched_engine) as session:
+        src = NewsSource(code="t", name="测试", priority=SourcePriority.HIGH)
+        session.add(src)
+        session.commit()
+        session.refresh(src)
+        assert src.id is not None
+
+        item = NewsItem(
+            source_id=src.id,
+            source_msg_id="m1",
+            title="重大政策",
+            published_at=datetime.now(UTC),
+        )
+        session.add(item)
+        session.commit()
+        session.refresh(item)
+        assert item.id is not None
+        nid = item.id
+
+        for lvl in (AlertLevel.P0, AlertLevel.P1, AlertLevel.P2):
+            session.add(
+                Alert(
+                    news_id=nid,
+                    level=lvl,
+                    trigger_reason="test",
+                    status="pending",
+                    created_at=datetime.now(UTC),
+                )
+            )
+        session.commit()
+
+    resp = api_client.get("/api/dashboard/summary")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["p0_alerts"]) == 1
+    assert len(data["p1_alerts"]) == 1
+    assert data["p0_alerts"][0]["level"] == "P0"
+
+
+def test_summary_latest_news_limit(api_client: TestClient, patched_engine: Engine) -> None:
+    """seed 60 条新闻 → summary.latest_news 默认 30 条上限。"""
+    with Session(patched_engine) as session:
+        src = NewsSource(code="t", name="测试", priority=SourcePriority.HIGH)
+        session.add(src)
+        session.commit()
+        session.refresh(src)
+        assert src.id is not None
+        for i in range(60):
+            session.add(
+                NewsItem(
+                    source_id=src.id,
+                    source_msg_id=f"m{i}",
+                    title=f"新闻{i}",
+                    published_at=datetime.now(UTC),
+                )
+            )
+        session.commit()
+
+    resp = api_client.get("/api/dashboard/summary")
+    assert resp.status_code == 200
+    assert len(resp.json()["latest_news"]) == 30
