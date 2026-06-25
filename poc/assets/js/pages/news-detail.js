@@ -19,11 +19,11 @@ function newsDetailPage() {
         return;
       }
       try {
-        this.news = await A.fetchJSON(`assets/data/news-detail-${id}.json`);
+        this.news = await A.fetchJSON(`/api/news/${id}`);
         document.title = `Amarket — ${this.news.title}`;
       } catch (e) {
         if (e.message.includes('404')) {
-          this.error = `新闻 #${id} 不存在（M3a 只 dump 了 5 条详情样本，完整 130 条 M3b 接 API 后可看）`;
+          this.error = `新闻 #${id} 不存在或已被删除`;
         } else {
           this.error = `加载失败：${e.message}`;
         }
