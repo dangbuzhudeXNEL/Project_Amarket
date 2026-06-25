@@ -31,12 +31,14 @@ function indexPage() {
     async init() {
       A.checkViewport();
       try {
-        const [dashboard, news, alerts, sectors] = await Promise.all([
-          A.fetchJSON('assets/data/dashboard.json'),
-          A.fetchJSON('assets/data/news.json'),
-          A.fetchJSON('assets/data/alerts.json'),
-          A.fetchJSON('assets/data/sectors.json'),
+        const [summary, sectorsResp] = await Promise.all([
+          A.fetchJSON('/api/dashboard/summary'),
+          A.fetchJSON('/api/dashboard/sectors'),
         ]);
+        const dashboard = summary;
+        const news = summary.latest_news || [];
+        const alerts = [...(summary.p0_alerts || []), ...(summary.p1_alerts || [])];
+        const sectors = sectorsResp;
         this.data = dashboard;
         this.marketStatus = dashboard.market_status || { indexes: [] };
         this.reports = dashboard.today_reports || {};
@@ -49,9 +51,23 @@ function indexPage() {
         const catSet = new Set(news.map((n) => n.primary_category).filter(Boolean));
         this.categories = Array.from(catSet).sort();
         this.$nextTick(() => this.renderHeatmap(sectors));
+        // M3b polling 集成
+        if (A.isPollingEnabled()) this._startPolling();
+        document.addEventListener('amarket:polling-changed', (e) => {
+          if (e.detail.enabled) this._startPolling();
+          else this._stopPolling();
+        });
       } catch (e) {
-        A.showBanner(`数据加载失败：${e.message}。请跑 \`uv run python scripts/dump_poc_fixtures.py\``);
+        A.showBanner(`数据加载失败：${e.message}`);
       }
+    },
+    _polling: null,
+    _startPolling() {
+      if (this._polling) return;
+      this._polling = A.startAutoRefresh(30000, () => this.init());
+    },
+    _stopPolling() {
+      if (this._polling) { this._polling.stop(); this._polling = null; }
     },
     get filteredNews() {
       return this.news.filter((n) => {

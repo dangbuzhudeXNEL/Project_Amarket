@@ -11,6 +11,54 @@ Each Spec corresponds to a major milestone. Within a Spec, M0-M9 are intermediat
 
 ## [Unreleased] — Spec #1 v3 进行中
 
+### Added — M3b 完整收官（看板 API 补齐 + 前端 fetch 切真）（2026-06-25, Session 13）
+
+**Phase 1 M3 整体完成（M3a 前端 POC + M3b 后端 API + 前端切真）。**
+
+#### 后端 — 5 类新端点 + 2 Repo + 1 Service（commits d963d89 → 94baafc）
+
+- `src/amarket/api/dashboard.py` 扩 3 端点：
+  - `GET /summary` — 首页一次性聚合（market_status + latest_news + p0/p1_alerts + top_sectors + top_movers + today_reports）
+  - `GET /sectors?window=1h|4h|1d` — 14 板块趋势（news_count_24h 实时反查；change_pct 留 None 等 M4）
+  - `GET /movers?n=10` — 个股异动榜（从 MarketSnapshot asset_kind='stock' 取；M3b 默认空，M4 调度补 stock 快照后自动有值）
+- `src/amarket/api/reports.py` 新 router 4 端点：`GET /api/reports`、`/{id}`、`/today`、`/today/{kind}`
+- `src/amarket/repositories/report_repo.py` — `list_recent / count_filtered / today_by_kind / list_today`
+- `src/amarket/repositories/sector_trend_repo.py` — `bulk_upsert / latest_for_sectors`
+- `src/amarket/services/dashboard/sector_trend.py` — `SectorTrendService` Phase 1 简化版：news_heat 从 NewsAnalysis.related_sectors JSON 反查；change_pct 等 M4 真填；14 板块 stub 市值权重
+- `src/amarket/domain/schemas.py` 加 9 个 DTO：`SectorDTO / SectorListResponse / MoverDTO / MoversListResponse / ReportSummaryDTO / ReportDetailDTO / ReportListResponse / TodayReportsResponse / DashboardSummary`（market_status 强类型 `MarketStatusBar`）
+- `src/amarket/main.py` — `app.mount("/poc", StaticFiles(directory=poc, html=True))` 实现同源前端，浏览器开 `http://127.0.0.1:8080/poc/index.html` 即可
+
+#### 前端 — fetch URL 切真 + 30s polling toggle
+
+- `poc/assets/js/shared.js` — `startAutoRefresh / isPollingEnabled / setPollingEnabled`（localStorage 持久化）
+- `poc/assets/js/nav.js` — LIVE 占位改成可点 polling button，CSS 加 PAUSED 状态；点击广播 `amarket:polling-changed` 事件
+- 5 个 page JS（每页独立 commit）：
+  - `index.js` → `/api/dashboard/summary` + `/api/dashboard/sectors` + 30s polling
+  - `news.js` → `/api/news?limit=200` + 30s polling
+  - `news-detail.js` → `/api/news/{id}`
+  - `sectors.js` → `/api/dashboard/sectors?window={1h|4h|1d}` + window switch live + 30s polling
+  - `reports.js` → `/api/reports/today`
+
+#### 测试 / 覆盖率
+
+- 新增 36 个测试（DTO smoke / ReportRepo 6 / SectorTrendRepo 3 / SectorTrendService 5 / sectors 4 / movers 3 / summary 3 / reports 8 / static_mount 3 + 1 task-2 fix）
+- **216 → 252 tests / 87.95% → 87.97% coverage**
+- ruff + mypy 全绿
+- 端到端 smoke：6 API 端点 + /poc/index.html + Swagger 全部 200
+
+#### 配置
+
+- `config/app.yml` `current_milestone: M2 → M3`
+
+#### 前端友好行为
+
+- index/news/sectors 接 polling 事件；详情页 + reports 不 polling（单次/低频）
+- summary 端点 p0/p1 alerts 仅含 P0/P1（不含 P2/P3 — P2/P3 通过 `/api/alerts` 查）
+- movers 默认空（DB 无 stock 快照）— M4 调度接通即用
+- `poc/assets/data/*.json` 保留作 fallback debug，不删（dump 脚本仍可用）
+
+---
+
 ### Added — M3a 完整收官（POC 6 页 + 双主题 + dump 脚本）（2026-06-24, Session 12, merged via PR #9 + #10 + #12 + #13）
 
 **Phase 1 M3 拆分为 M3a（前端）+ M3b（API），M3a 又分 PR1（框架+核心3页）+ fix（theme+polish）+ PR2（剩余+赛博朋克）。本次完成 M3a 全部 3 个实现 PR。**

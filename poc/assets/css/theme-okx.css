@@ -653,3 +653,8 @@ button.btn.btn-primary:hover {
   border-radius: 10px;
   background: var(--bg-card);
 }
+
+/* M3b polling toggle 状态样式 */
+.live-indicator { cursor: pointer; border: none; outline: none; background: transparent; }
+.live-indicator.off .live-dot { animation: none; background: #4a4d55; box-shadow: none; }
+.live-indicator.off { color: #7a7d85; }

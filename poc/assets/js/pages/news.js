@@ -19,12 +19,26 @@ function newsPage() {
     async init() {
       A.checkViewport();
       try {
-        this.news = await A.fetchJSON('assets/data/news.json');
+        const resp = await A.fetchJSON('/api/news?limit=200');
+        this.news = resp.items || [];
         this.sourceOptions = Array.from(new Set(this.news.map((n) => n.source).filter(Boolean))).sort();
         this.categoryOptions = Array.from(new Set(this.news.map((n) => n.primary_category).filter(Boolean))).sort();
+        if (A.isPollingEnabled()) this._startPolling();
+        document.addEventListener('amarket:polling-changed', (e) => {
+          if (e.detail.enabled) this._startPolling();
+          else this._stopPolling();
+        });
       } catch (e) {
         A.showBanner(`数据加载失败：${e.message}`);
       }
+    },
+    _polling: null,
+    _startPolling() {
+      if (this._polling) return;
+      this._polling = A.startAutoRefresh(30000, () => this.init());
+    },
+    _stopPolling() {
+      if (this._polling) { this._polling.stop(); this._polling = null; }
     },
     get hasActiveFilters() {
       return this.filter.sources.length || this.filter.categories.length ||
