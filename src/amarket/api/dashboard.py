@@ -11,14 +11,17 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends
-from sqlmodel import Session
+from fastapi import APIRouter, Depends, Query
+from sqlmodel import Session, select
 
 from amarket.adapters.market_sources.base import MAJOR_A_SHARE_INDEXES
 from amarket.api.dependencies import db_session
+from amarket.domain.models import MarketSnapshot
 from amarket.domain.schemas import (
     IndexSnapshot,
     MarketStatusBar,
+    MoverDTO,
+    MoversListResponse,
     NewsSourceDTO,
     SectorListResponse,
 )
@@ -110,6 +113,48 @@ async def dashboard_sectors(
         as_of=datetime.now(UTC),
         window=effective_window,
         sectors=sectors,
+    )
+
+
+@router.get("/movers", response_model=MoversListResponse)
+async def dashboard_movers(
+    n: int = Query(default=10, ge=1, le=50),
+    session: Session = Depends(db_session),
+) -> MoversListResponse:
+    """个股异动榜（M3b — 简化版）：从 MarketSnapshot 按 change_pct 取 top n。
+
+    Phase 1 备注：依赖 asset_kind='stock' 的快照入库。当前调度只入 index，
+    所以默认返回空列表 — 前端友好处理。M4 调度补 stock 快照后自动有值。
+    """
+    # 每个 code 取最新一条 stock 快照
+    stmt = (
+        select(MarketSnapshot)
+        .where(MarketSnapshot.asset_kind == "stock")
+        .order_by(MarketSnapshot.ts.desc())  # type: ignore[attr-defined]
+    )
+    seen: dict[str, MarketSnapshot] = {}
+    for row in session.exec(stmt):
+        if row.code not in seen:
+            seen[row.code] = row
+
+    snapshots = [s for s in seen.values() if s.change_pct is not None]
+    gainers = sorted(snapshots, key=lambda s: s.change_pct or 0.0, reverse=True)[:n]
+    losers = sorted(snapshots, key=lambda s: s.change_pct or 0.0)[:n]
+
+    def to_dto(s: MarketSnapshot) -> MoverDTO:
+        return MoverDTO(
+            code=s.code,
+            name=s.name,
+            change_pct=s.change_pct,
+            price=s.price,
+            volume=s.volume,
+            turnover=s.turnover,
+        )
+
+    return MoversListResponse(
+        as_of=datetime.now(UTC),
+        top_gainers=[to_dto(s) for s in gainers if (s.change_pct or 0.0) >= 0],
+        top_losers=[to_dto(s) for s in losers if (s.change_pct or 0.0) < 0],
     )
 
 
