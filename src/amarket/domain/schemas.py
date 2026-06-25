@@ -163,6 +163,8 @@ class SectorListResponse(BaseModel):
 
 
 class MoverDTO(BaseModel):
+    """个股异动榜单条 DTO（M3b — 简化版，行情从 MarketSnapshot 取）。"""
+
     code: str
     name: str | None = None
     change_pct: float | None = None
@@ -221,6 +223,7 @@ class TodayReportsResponse(BaseModel):
     """`GET /api/reports/today` — 今日 6 时段（缺失为 None）。"""
 
     today: date
+    # NOTE: 字段名保留为 `reports_by_kind`；DashboardSummary 用 `today_reports` 表达同样的结构 —— 故意不统一，保持各自 API 的 POC JSON 约定
     reports_by_kind: dict[str, ReportDetailDTO | None] = Field(default_factory=dict)
 
 
@@ -233,13 +236,14 @@ class DashboardSummary(BaseModel):
     """`GET /api/dashboard/summary` — 首页一次性聚合（前端 index.html 用）。"""
 
     as_of: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    market_status: dict[str, Any] = Field(default_factory=dict)
+    market_status: MarketStatusBar = Field(default_factory=MarketStatusBar)
     today_conclusion: str | None = None
     latest_news: list[NewsCardDTO] = Field(default_factory=list)
     p0_alerts: list[AlertDTO] = Field(default_factory=list)
     p1_alerts: list[AlertDTO] = Field(default_factory=list)
     top_sectors: list[SectorDTO] = Field(default_factory=list)
     top_movers: list[MoverDTO] = Field(default_factory=list)
+    # NOTE: 字段名保留为 `today_reports`；TodayReportsResponse 用 `reports_by_kind` 表达同样的结构 —— 故意不统一，保持各自 API 的 POC JSON 约定
     today_reports: dict[str, ReportDetailDTO | None] = Field(default_factory=dict)
 
 

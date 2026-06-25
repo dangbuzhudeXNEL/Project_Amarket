@@ -46,6 +46,7 @@ def test_m3b_dtos_instantiate_and_serialize() -> None:
 
     from amarket.domain.schemas import (
         DashboardSummary,
+        MarketStatusBar,
         MoverDTO,
         MoversListResponse,
         ReportDetailDTO,
@@ -95,7 +96,7 @@ def test_m3b_dtos_instantiate_and_serialize() -> None:
 
     summary = DashboardSummary(
         as_of=datetime.now(UTC),
-        market_status={"indexes": [], "fx": [], "commodities": []},
+        market_status=MarketStatusBar(),
         today_conclusion=None,
         latest_news=[],
         p0_alerts=[],
