@@ -75,25 +75,29 @@ function sectorsPage() {
       if (!chart) chart = echarts.init(el, null, { renderer: 'canvas' });
 
       const items = this.sectorsList.map((s) => {
+        // M3b post-merge polish：change_pct 可能为 null（Phase 1 数据空时）→ 用中性灰 + "—"
+        const cp = s.change_pct;
+        const cpKnown = (cp !== null && cp !== undefined && !isNaN(cp));
         let value, color, opacity;
         if (this.dimension === 'change') {
-          value = Math.max(0.3, Math.abs(s.change_pct));
-          color = s.change_pct >= 0 ? '#00d97e' : '#ff4d5e';
-          opacity = Math.min(1, 0.4 + Math.abs(s.change_pct) / 4);
+          value = cpKnown ? Math.max(0.3, Math.abs(cp)) : 0.5;
+          color = !cpKnown ? '#4a4d55' : (cp >= 0 ? '#00d97e' : '#ff4d5e');
+          opacity = cpKnown ? Math.min(1, 0.4 + Math.abs(cp) / 4) : 0.55;
         } else if (this.dimension === 'news') {
           value = Math.max(1, s.news_count_24h);
-          color = '#00c2ff';
+          color = s.news_count_24h > 0 ? '#00c2ff' : '#4a4d55';
           opacity = Math.min(1, 0.35 + s.news_count_24h / 30);
         } else {
-          value = s.market_cap_weight * 100;
-          color = '#b026ff';
-          opacity = 0.4 + s.market_cap_weight * 3;
+          const w = s.market_cap_weight || 0;
+          value = w * 100 || 1;
+          color = w > 0 ? '#b026ff' : '#4a4d55';
+          opacity = 0.4 + w * 3;
         }
         const labelText = this.dimension === 'change'
-          ? `${s.name}\n${s.change_pct >= 0 ? '+' : ''}${s.change_pct}%`
+          ? `${s.name}\n${cpKnown ? (cp >= 0 ? '+' : '') + cp + '%' : '—'}`
           : this.dimension === 'news'
           ? `${s.name}\n${s.news_count_24h} 条`
-          : `${s.name}\n${(s.market_cap_weight * 100).toFixed(1)}%`;
+          : `${s.name}\n${((s.market_cap_weight || 0) * 100).toFixed(1)}%`;
         return {
           name: labelText,
           value,
@@ -108,12 +112,21 @@ function sectorsPage() {
           formatter: (info) => {
             const sec = this.sectorsList.find((s) => s.name === info.data.sectorName);
             if (!sec) return '';
+            const cp = sec.change_pct;
+            const cpKnown = (cp !== null && cp !== undefined && !isNaN(cp));
+            const cpHtml = cpKnown
+              ? `<span style="color:${cp >= 0 ? '#00d97e' : '#ff4d5e'};font-weight:600">${cp >= 0 ? '+' : ''}${cp}%</span>`
+              : `<span style="color:#7a7d85;font-weight:600">— (M4 接调度后填充)</span>`;
+            const mcw = sec.market_cap_weight;
+            const mcwHtml = (mcw !== null && mcw !== undefined)
+              ? `<span style="color:#fff;font-weight:600">${(mcw * 100).toFixed(1)}%</span>`
+              : `<span style="color:#7a7d85">—</span>`;
             return `
               <div style="font-family:Inter,sans-serif;padding:4px">
                 <div style="font-weight:600;font-size:14px;margin-bottom:6px">${sec.name}</div>
-                <div style="font-size:12px;color:#9da0a8">涨跌 <span style="color:${sec.change_pct>=0?'#00d97e':'#ff4d5e'};font-weight:600">${sec.change_pct>=0?'+':''}${sec.change_pct}%</span></div>
+                <div style="font-size:12px;color:#9da0a8">涨跌 ${cpHtml}</div>
                 <div style="font-size:12px;color:#9da0a8">新闻 <span style="color:#fff;font-weight:600">${sec.news_count_24h} 条</span></div>
-                <div style="font-size:12px;color:#9da0a8">市值权重 <span style="color:#fff;font-weight:600">${(sec.market_cap_weight*100).toFixed(1)}%</span></div>
+                <div style="font-size:12px;color:#9da0a8">市值权重 ${mcwHtml}</div>
               </div>
             `;
           },
