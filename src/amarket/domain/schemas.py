@@ -134,13 +134,131 @@ class NewsSourceDTO(BaseModel):
     recent_items_count: int | None = None  # 最近 1h
 
 
+# --------------------------------------------------------------------------- #
+# Sector DTOs（M3b）
+# --------------------------------------------------------------------------- #
+
+
+class SectorDTO(BaseModel):
+    """单个板块的看板数据（Spec v3 §10.3 / M3a POC sectors.json 对齐）。"""
+
+    name: str
+    change_pct: float | None = None  # M3b Phase 1：None 占位，M4 真填
+    news_count_24h: int = 0
+    market_cap_weight: float | None = None  # M3b stub mapping
+    top_symbols: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class SectorListResponse(BaseModel):
+    """`GET /api/dashboard/sectors` 响应。"""
+
+    as_of: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    window: str = "1d"  # '1h' | '4h' | '1d'
+    sectors: list[SectorDTO] = Field(default_factory=list)
+
+
+# --------------------------------------------------------------------------- #
+# Mover DTOs（M3b — 个股异动榜）
+# --------------------------------------------------------------------------- #
+
+
+class MoverDTO(BaseModel):
+    code: str
+    name: str | None = None
+    change_pct: float | None = None
+    price: float | None = None
+    volume: float | None = None
+    turnover: float | None = None
+
+
+class MoversListResponse(BaseModel):
+    """`GET /api/dashboard/movers` 响应。"""
+
+    as_of: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    top_gainers: list[MoverDTO] = Field(default_factory=list)
+    top_losers: list[MoverDTO] = Field(default_factory=list)
+
+
+# --------------------------------------------------------------------------- #
+# Report DTOs（M3b — 6 时段日报）
+# --------------------------------------------------------------------------- #
+
+
+class ReportSummaryDTO(BaseModel):
+    """`GET /api/reports` 列表项（不含 markdown 全文）。"""
+
+    report_id: int
+    date: date  # 与 spec/前端字段名一致
+    kind: str  # 'premarket' | 'morning' | 'noon' | 'afternoon' | 'close' | 'evening'
+    status: str  # 'pending' | 'completed' | 'failed'
+    generated_by: str | None = None
+    generated_at: datetime
+    push_count: int = 0
+
+
+class ReportDetailDTO(BaseModel):
+    """`GET /api/reports/{id}` + `/today/{kind}` 响应（含 markdown 全文）。"""
+
+    report_id: int
+    date: date  # 与 spec/前端字段名一致
+    kind: str
+    status: str
+    markdown: str | None = None
+    content_json: dict[str, Any] = Field(default_factory=dict)
+    generated_by: str | None = None
+    generated_at: datetime
+    push_count: int = 0
+
+
+class ReportListResponse(BaseModel):
+    items: list[ReportSummaryDTO]
+    total: int
+    offset: int
+    limit: int
+
+
+class TodayReportsResponse(BaseModel):
+    """`GET /api/reports/today` — 今日 6 时段（缺失为 None）。"""
+
+    today: date
+    reports_by_kind: dict[str, ReportDetailDTO | None] = Field(default_factory=dict)
+
+
+# --------------------------------------------------------------------------- #
+# Dashboard Summary（M3b — 首页聚合）
+# --------------------------------------------------------------------------- #
+
+
+class DashboardSummary(BaseModel):
+    """`GET /api/dashboard/summary` — 首页一次性聚合（前端 index.html 用）。"""
+
+    as_of: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    market_status: dict[str, Any] = Field(default_factory=dict)
+    today_conclusion: str | None = None
+    latest_news: list[NewsCardDTO] = Field(default_factory=list)
+    p0_alerts: list[AlertDTO] = Field(default_factory=list)
+    p1_alerts: list[AlertDTO] = Field(default_factory=list)
+    top_sectors: list[SectorDTO] = Field(default_factory=list)
+    top_movers: list[MoverDTO] = Field(default_factory=list)
+    today_reports: dict[str, ReportDetailDTO | None] = Field(default_factory=dict)
+
+
 __all__ = [
     "AlertDTO",
     "AlertListResponse",
+    "DashboardSummary",
     "IndexSnapshot",
     "MarketStatusBar",
+    "MoverDTO",
+    "MoversListResponse",
     "NewsCardDTO",
     "NewsListResponse",
     "NewsSourceDTO",
     "RawNewsItem",
+    "ReportDetailDTO",
+    "ReportListResponse",
+    "ReportSummaryDTO",
+    "SectorDTO",
+    "SectorListResponse",
+    "TodayReportsResponse",
 ]
