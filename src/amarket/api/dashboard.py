@@ -9,16 +9,22 @@ M3+ 起：summary / sectors / alerts / movers ...
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends
 from sqlmodel import Session
 
 from amarket.adapters.market_sources.base import MAJOR_A_SHARE_INDEXES
 from amarket.api.dependencies import db_session
-from amarket.domain.schemas import IndexSnapshot, MarketStatusBar, NewsSourceDTO
+from amarket.domain.schemas import (
+    IndexSnapshot,
+    MarketStatusBar,
+    NewsSourceDTO,
+    SectorListResponse,
+)
 from amarket.repositories.market_snapshot_repo import MarketSnapshotRepo
 from amarket.repositories.news_source_repo import NewsSourceRepo
+from amarket.services.dashboard.sector_trend import SectorTrendService
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -77,6 +83,34 @@ async def news_sources(
         )
         for src in rows
     ]
+
+
+_WINDOW_MAP: dict[str, timedelta] = {
+    "1h": timedelta(hours=1),
+    "4h": timedelta(hours=4),
+    "1d": timedelta(days=1),
+}
+
+
+@router.get("/sectors", response_model=SectorListResponse)
+async def dashboard_sectors(
+    window: str = "1d",
+    session: Session = Depends(db_session),
+) -> SectorListResponse:
+    """板块趋势看板（M3b — Phase 1 简化版）。
+
+    - window：'1h' | '4h' | '1d'（默认 1d；无效值 fallback 到 1d）
+    - 数据：news_count_24h 实时反查；change_pct 来自 SectorTrend 表（无则 None）
+    """
+    td = _WINDOW_MAP.get(window) or timedelta(days=1)
+    effective_window = window if window in _WINDOW_MAP else "1d"
+    svc = SectorTrendService(session)
+    sectors = svc.list_sectors(window=td)
+    return SectorListResponse(
+        as_of=datetime.now(UTC),
+        window=effective_window,
+        sectors=sectors,
+    )
 
 
 __all__ = ["router"]
