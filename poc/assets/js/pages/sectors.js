@@ -34,16 +34,40 @@ function sectorsPage() {
     async init() {
       A.checkViewport();
       try {
-        [sectorsData, allNews] = await Promise.all([
-          A.fetchJSON('assets/data/sectors.json'),
-          A.fetchJSON('assets/data/news.json'),
+        const [sectorsResp, newsResp] = await Promise.all([
+          A.fetchJSON(`/api/dashboard/sectors?window=${this.window}`),
+          A.fetchJSON('/api/news?limit=200'),
         ]);
+        sectorsData = sectorsResp;
+        allNews = newsResp.items || [];
         this.sectorsList = sectorsData.sectors;
         this.$nextTick(() => this.renderChart());
         this.$watch('dimension', () => this.renderChart());
+        // M3b — window 切换重新拉
+        this.$watch('window', async () => {
+          try {
+            sectorsData = await A.fetchJSON(`/api/dashboard/sectors?window=${this.window}`);
+            this.sectorsList = sectorsData.sectors;
+            this.renderChart();
+          } catch (e) { A.showBanner(`刷新失败：${e.message}`); }
+        });
+        // polling
+        if (A.isPollingEnabled()) this._startPolling();
+        document.addEventListener('amarket:polling-changed', (e) => {
+          if (e.detail.enabled) this._startPolling();
+          else this._stopPolling();
+        });
       } catch (e) {
         A.showBanner(`数据加载失败：${e.message}`);
       }
+    },
+    _polling: null,
+    _startPolling() {
+      if (this._polling) return;
+      this._polling = A.startAutoRefresh(30000, () => this.init());
+    },
+    _stopPolling() {
+      if (this._polling) { this._polling.stop(); this._polling = null; }
     },
     renderChart() {
       const el = document.getElementById('big-heatmap');
