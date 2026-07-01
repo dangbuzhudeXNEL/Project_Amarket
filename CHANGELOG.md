@@ -11,6 +11,67 @@ Each Spec corresponds to a major milestone. Within a Spec, M0-M9 are intermediat
 
 ## [Unreleased] — Spec #1 v3 进行中
 
+### Added — Session 14: PR #17 post-M3b polish + Brainmaster agent B demo (2026-06-27 ~ 2026-06-30)
+
+**通过浏览器 dogfood（gstack）发现 3 个 pre-existing 问题，一并 fix + merge；再实测 Brainmaster agent 路径为 M4 提供决策依据。**
+
+#### PR #17 (`f96b944`) — 3 commits post-M3b polish
+
+**1. `fix(poc): remove defer from page JS to fix Alpine load order`**
+
+Pre-existing M3a bug — 6 个 POC HTML 都同时给 Alpine 和 page JS 加了 `defer`。按 HTML 规范，deferred 脚本在 DOMContentLoaded 时按 document order 执行。Alpine 声明在前 → `Alpine.start()` 立即跑并评估 `x-data="indexPage()"` → 但 `indexPage` 还没定义 → cascade of Alpine errors + 页面空白。修：去掉 page JS 的 `defer`，让它同步执行（在 Alpine defer 之前完成定义）。
+
+**2. `feat(api): expand GET /api/news/{id} to full NewsDetailDTO with AI analysis`**
+
+`news-detail.html` 模板设计给完整 AI 分析用（`ai_reasoning / risk_notes / related_sectors 带权重 / related_symbols / 6 评分指标 / related_news 同事件`）— 但端点只返回 `NewsCardDTO` 8 字段，导致 DB 里已有的 135 条 AI 分析（含 5 条 Brainmaster agent 深度分析）在前端**完全看不到**。修：
+- 新增 `NewsDetailDTO` + `RelatedNewsDTO` 到 `schemas.py`
+- `/api/news/{id}` 返回 `NewsDetailDTO`（含 11 个 detail-only 字段）
+- 列表端点保持 `NewsCardDTO` 轻量
+- `_latest_analysis_for` 优先取 `agent:/sdk:` 分析（比 rule 深）
+- 新增 test 覆盖所有 11 个 detail 字段
+
+**3. `fix(poc): sectors null change_pct shows '—' + neutral gray`**
+
+Phase 1 设计意图上 `SectorTrend.change_pct=null` 直到 M4 scheduler 填表。但前端 treemap 渲染 `+null%` + 假绿色 → 视觉误导（看起来所有板块都 0% 上涨）。修：`change_pct == null` 时显示 `—` + 中性灰 + 更低透明度；tooltip 写明 `— (M4 接调度后填充)`。
+
+#### Session 14 后期 — Brainmaster agent B demo（无代码改动，纯 CLI 实测）
+
+```bash
+uv run amarket analyze news --reanalyze --limit 20 --concurrency 5
+```
+
+**结果**：
+- **18/20 AI 成功（90%）**，2 条 JSON parse 失败降级到 rule
+- 单条平均 ~15 秒（并发 5，总 ~90 秒）
+- 零 API key 成本（subprocess `claude` CLI + `news-classifier-realtime` agent）
+- 新增 **2 P1 + 5 P2 alerts** 落库
+- 触发 1 次 `alert.superseded`（新 P1 覆盖旧 P2）
+
+**质量样例**：
+- 洪水新闻（#191）→ agent 主动识别次生受影响板块（**农业 + 保险 + 水利建设 + 水务**）+ 具体标的（中国人保 / 太保）+ 情景升级风险提示
+- IPO 双增新闻（#192）→ agent 引用具体数据（+35% / +88%）+ 板块识别到 **半导体 80% + 券商投行 75%** 等 5 板块 + 流动性分流风险提示
+
+**对 M4 的量化决策依据**：
+- 60s 新闻轮询 + concurrency 5 足够（每分钟最多 20 条）
+- rule 降级链必须保留（10% 失败率）
+- 主 AI 路径就走 Brainmaster，SDK 只作 fallback（零成本）
+- 中文语义 agent 完全可用，无需担心
+
+#### 测试 / 覆盖率
+- 253 tests / 87.97% coverage（+1 detail 字段测试）
+- ruff / ruff format / mypy 全绿
+- CI 5/5 通过
+
+#### 数据状态（Session 14 手动 refresh 后）
+- 6/26 21:44 跑 `collect market` → +6 快照
+- 6/26 22:44 跑 `collect news --full` → +100 新闻
+- 6/26 22:45 跑 `dedupe news` → +99 events
+- 6/26 22:45 跑 `analyze news --no-ai` → +50 rule 分析 + 23 P2 alerts
+- 6/30 22:37 跑 `analyze news --reanalyze --limit 20` → +18 agent 分析 + 2 P1 + 5 P2 alerts
+- **最终 DB**：230 NewsItem / 203 NewsAnalysis（180 rule + 23 agent）/ 103 Alert / 18 MarketSnapshot / 229 NewsEvent
+
+---
+
 ### Added — M3b 完整收官（看板 API 补齐 + 前端 fetch 切真）（2026-06-25, Session 13）
 
 **Phase 1 M3 整体完成（M3a 前端 POC + M3b 后端 API + 前端切真）。**
